@@ -121,7 +121,7 @@ class _SearchFilterScreenState extends ConsumerState<SearchFilterScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _LocationSearchBottomSheet(
+      builder: (ctx) => LocationSearchBottomSheet(
         title: 'Chọn Tỉnh / Thành phố',
         searchHint: 'Tìm kiếm tỉnh hoặc thành phố...',
         items: const ['Tất cả', ...VietnamLocations.provinces],
@@ -152,7 +152,7 @@ class _SearchFilterScreenState extends ConsumerState<SearchFilterScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _LocationSearchBottomSheet(
+      builder: (ctx) => LocationSearchBottomSheet(
         title: 'Chọn Quận / Huyện ($_selectedCity)',
         searchHint: 'Tìm quận, huyện, thị xã...',
         items: districts,
@@ -183,7 +183,7 @@ class _SearchFilterScreenState extends ConsumerState<SearchFilterScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _LocationSearchBottomSheet(
+      builder: (ctx) => LocationSearchBottomSheet(
         title: 'Chọn Phường / Xã ($_selectedDistrict)',
         searchHint: 'Tìm phường, xã, thị trấn...',
         items: wards,
@@ -1464,7 +1464,7 @@ class _SearchFilterScreenState extends ConsumerState<SearchFilterScreen> {
 }
 
 /// Bottom Sheet tìm kiếm địa điểm với Search Bar mượt mà
-class _LocationSearchBottomSheet extends StatefulWidget {
+class LocationSearchBottomSheet extends StatefulWidget {
   final String title;
   final String searchHint;
   final List<String> items;
@@ -1472,7 +1472,8 @@ class _LocationSearchBottomSheet extends StatefulWidget {
   final String allLabel;
   final ValueChanged<String> onSelected;
 
-  const _LocationSearchBottomSheet({
+  const LocationSearchBottomSheet({
+    super.key,
     required this.title,
     required this.searchHint,
     required this.items,
@@ -1482,10 +1483,10 @@ class _LocationSearchBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<_LocationSearchBottomSheet> createState() => _LocationSearchBottomSheetState();
+  State<LocationSearchBottomSheet> createState() => LocationSearchBottomSheetState();
 }
 
-class _LocationSearchBottomSheetState extends State<_LocationSearchBottomSheet> {
+class LocationSearchBottomSheetState extends State<LocationSearchBottomSheet> {
   final TextEditingController _controller = TextEditingController();
   late List<String> _filteredItems;
 

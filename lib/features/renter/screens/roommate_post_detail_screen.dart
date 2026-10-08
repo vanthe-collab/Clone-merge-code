@@ -8,6 +8,7 @@ import '../../../data/models/roommate_post_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/user_provider.dart';
 import '../../chat/screens/chat_detail_screen.dart';
+import 'roommate_room_detail_screen.dart';
 
 /// Màn hình Chi tiết bài đăng ở ghép chuẩn Figma & Material Design (Không hardcode)
 class RoommatePostDetailScreen extends ConsumerStatefulWidget {
@@ -190,6 +191,16 @@ class _RoommatePostDetailScreenState extends ConsumerState<RoommatePostDetailScr
             child: const Text('Gửi báo cáo'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openSharedRoomDetail() {
+    if (!widget.post.hasRoom) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RoommateRoomDetailScreen(post: widget.post),
       ),
     );
   }
@@ -835,7 +846,9 @@ class _RoommatePostDetailScreenState extends ConsumerState<RoommatePostDetailScr
                       children: [
                         Row(
                           children: [
-                            Stack(
+                            GestureDetector(
+                              onTap: _openSharedRoomDetail,
+                              child: Stack(
                               clipBehavior: Clip.none,
                               children: [
                                 CircleAvatar(
@@ -870,12 +883,15 @@ class _RoommatePostDetailScreenState extends ConsumerState<RoommatePostDetailScr
                                   ),
                               ],
                             ),
+                            ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  GestureDetector(
+                                    onTap: _openSharedRoomDetail,
+                                    child: Row(
                                     children: [
                                       Text(
                                         post.authorName,
@@ -889,6 +905,7 @@ class _RoommatePostDetailScreenState extends ConsumerState<RoommatePostDetailScr
                                         ),
                                       ],
                                     ],
+                                    ),
                                   ),
                                   if (post.authorOccupation.isNotEmpty) ...[
                                     const SizedBox(height: 3),

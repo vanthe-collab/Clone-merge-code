@@ -2,12 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/roommate_post_model.dart';
+import '../constants/vietnam_locations.dart';
 
 class RoommateFilterParams {
+  final String province;
   final String district;
   final String targetGender;
   final bool? hasRoom; // null: Tất cả, true: Đã có phòng sẵn, false: Chưa có phòng
-  final String occupation; // 'Tất cả', 'Sinh viên', 'Đã đi làm', 'Freelancer'
+  final String occupation; // 'Tất cả', hoặc một nghề khi chỉ chọn một mục
+  final List<String> occupations;
   final double? budgetMin;
   final double? budgetMax;
   final List<String> habits;
@@ -15,10 +18,12 @@ class RoommateFilterParams {
   final String searchQuery;
 
   const RoommateFilterParams({
+    this.province = 'Tất cả',
     this.district = 'Tất cả',
     this.targetGender = 'Tất cả',
     this.hasRoom,
     this.occupation = 'Tất cả',
+    this.occupations = const [],
     this.budgetMin,
     this.budgetMax,
     this.habits = const [],
@@ -27,11 +32,13 @@ class RoommateFilterParams {
   });
 
   RoommateFilterParams copyWith({
+    String? province,
     String? district,
     String? targetGender,
     bool? hasRoom,
     bool clearHasRoom = false,
     String? occupation,
+    List<String>? occupations,
     double? budgetMin,
     double? budgetMax,
     List<String>? habits,
@@ -39,10 +46,12 @@ class RoommateFilterParams {
     String? searchQuery,
   }) {
     return RoommateFilterParams(
+      province: province ?? this.province,
       district: district ?? this.district,
       targetGender: targetGender ?? this.targetGender,
       hasRoom: clearHasRoom ? null : (hasRoom ?? this.hasRoom),
       occupation: occupation ?? this.occupation,
+      occupations: occupations ?? this.occupations,
       budgetMin: budgetMin ?? this.budgetMin,
       budgetMax: budgetMax ?? this.budgetMax,
       habits: habits ?? this.habits,
@@ -55,10 +64,12 @@ class RoommateFilterParams {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is RoommateFilterParams &&
+          province == other.province &&
           district == other.district &&
           targetGender == other.targetGender &&
           hasRoom == other.hasRoom &&
           occupation == other.occupation &&
+          listEquals(occupations, other.occupations) &&
           budgetMin == other.budgetMin &&
           budgetMax == other.budgetMax &&
           listEquals(habits, other.habits) &&
@@ -67,10 +78,12 @@ class RoommateFilterParams {
 
   @override
   int get hashCode => Object.hash(
+        province,
         district,
         targetGender,
         hasRoom,
         occupation,
+        Object.hashAll(occupations),
         budgetMin,
         budgetMax,
         Object.hashAll(habits),
@@ -91,10 +104,12 @@ class RoommateService {
     String? targetGender,
     RoommateFilterParams? filters,
   }) {
+    final effectiveProvince = filters?.province ?? 'Tất cả';
     final effectiveDistrict = filters?.district ?? district;
     final effectiveTargetGender = filters?.targetGender ?? targetGender;
     final hasRoom = filters?.hasRoom;
     final occupation = filters?.occupation;
+    final occupations = filters?.occupations ?? const <String>[];
     final budgetMin = filters?.budgetMin;
     final budgetMax = filters?.budgetMax;
     final habits = filters?.habits ?? const [];
@@ -153,10 +168,12 @@ class RoommateService {
           }
         }
 
-        // 3. Khu vực quận huyện
+        // 3. Tỉnh / thành phố, rồi tới quận hoặc phường nếu đã chọn
+        if (effectiveProvince.isNotEmpty && effectiveProvince != 'Tất cả') {
+          if (!_postMatchesProvince(post, effectiveProvince)) return false;
+        }
         if (effectiveDistrict != null && effectiveDistrict.isNotEmpty && effectiveDistrict != 'Tất cả') {
-          if (!post.district.toLowerCase().contains(effectiveDistrict.toLowerCase()) &&
-              !post.address.toLowerCase().contains(effectiveDistrict.toLowerCase())) {
+          if (!_placeHit(post.district, effectiveDistrict) && !_placeHit(post.address, effectiveDistrict)) {
             return false;
           }
         }
@@ -174,11 +191,15 @@ class RoommateService {
           }
         }
 
-        // 5. Nghề nghiệp
-        if (occupation != null && occupation.isNotEmpty && occupation != 'Tất cả') {
-          if (!post.authorOccupation.toLowerCase().contains(occupation.toLowerCase())) {
-            return false;
-          }
+        // 5. Nghề nghiệp: khớp nếu nghề của người đăng chứa một mục đã chọn
+        final selectedOccupations = <String>{
+          ...occupations.where((item) => item.trim().isNotEmpty && item != 'Tất cả'),
+          if (occupation != null && occupation.isNotEmpty && occupation != 'Tất cả') occupation,
+        };
+        if (selectedOccupations.isNotEmpty) {
+          final authorJob = post.authorOccupation.toLowerCase();
+          final matched = selectedOccupations.any((item) => authorJob.contains(item.toLowerCase()));
+          if (!matched) return false;
         }
 
         // 6. Ngân sách
@@ -352,6 +373,52 @@ class RoommateService {
 }
 
 final roommateServiceProvider = Provider<RoommateService>((ref) => RoommateService());
+
+/// Bài đăng thuộc tỉnh đã chọn khi địa chỉ hoặc quận trùng tỉnh, hoặc trùng một quận của tỉnh đó.
+bool _postMatchesProvince(RoommatePostModel post, String province) {
+  if (_placeHit(post.address, province) || _placeHit(post.district, province)) return true;
+  for (final district in VietnamLocations.getAdministrativeDistricts(province)) {
+    if (_placeHit(post.district, district) || _placeHit(post.address, district)) return true;
+  }
+  return false;
+}
+
+/// Khớp tên địa danh, kể cả khi một bên có tiền tố Quận/Phường. "Quận 1" không ăn "Quận 10".
+bool _placeHit(String haystack, String needle) {
+  final h = haystack.toLowerCase();
+  final n = needle.toLowerCase().trim();
+  if (n.length < 2 || h.isEmpty) return false;
+  if (_boundedContains(h, n)) return true;
+  final core = n
+      .replaceAll('quận ', '')
+      .replaceAll('huyện ', '')
+      .replaceAll('thị xã ', '')
+      .replaceAll('thành phố ', '')
+      .replaceAll('tp. ', '')
+      .replaceAll('phường ', '')
+      .replaceAll('xã ', '')
+      .trim();
+  if (core.length < 2 || core == n) return false;
+  return _boundedContains(h, core);
+}
+
+bool _boundedContains(String haystack, String needle) {
+  var start = 0;
+  while (true) {
+    final index = haystack.indexOf(needle, start);
+    if (index < 0) return false;
+    final end = index + needle.length;
+    final prevOk = index == 0 || !_isDigit(haystack[index - 1]);
+    final nextOk = end >= haystack.length || !_isDigit(haystack[end]);
+    if (prevOk && nextOk) return true;
+    start = index + 1;
+  }
+}
+
+bool _isDigit(String char) {
+  final code = char.codeUnitAt(0);
+  return code >= 48 && code <= 57;
+}
 
 class RoommatePostsRefreshNotifier extends Notifier<int> {
   @override

@@ -11,7 +11,8 @@ import '../../auth/providers/user_provider.dart';
 import '../../chat/screens/chat_detail_screen.dart';
 import 'create_roommate_post_screen.dart';
 import 'roommate_lifestyle_filter_sheet.dart';
-import 'roommate_post_detail_screen.dart';
+import 'roommate_room_detail_screen.dart';
+import 'roommate_search_screen.dart';
 
 /// Màn hình Tìm Ở Ghép chuẩn Figma 100% (Hình 1)
 /// Tích hợp Bộ lọc Lifestyle & Ở ghép AI Match (Hình 2)
@@ -32,13 +33,34 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
     minMatchRate: 0,
   );
 
-  final TextEditingController _searchController = TextEditingController();
   final Set<String> _bookmarkedPostIds = {};
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _openRoommateSearch() async {
+    final result = await Navigator.push<RoommateSearchResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RoommateSearchScreen(
+          initialProvince: _currentFilters.province == 'Tất cả' ? 'TP. Hồ Chí Minh' : _currentFilters.province,
+          initialHasRoom: _currentFilters.hasRoom != false,
+          initialFilters: _currentFilters,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _currentFilters = _currentFilters.copyWith(
+        province: result.province,
+        district: result.district,
+        hasRoom: result.hasRoom,
+        targetGender: result.targetGender,
+        occupation: result.occupation,
+        occupations: result.occupations,
+        habits: result.habits,
+        minMatchRate: result.minMatchRate,
+        budgetMin: result.budgetMin,
+        budgetMax: result.budgetMax,
+      );
+    });
   }
 
   /// Mở Bottom Sheet "Bộ lọc Lifestyle & Ở ghép AI Match" (Hình 2)
@@ -153,12 +175,11 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
     );
   }
 
-  /// Mở Màn Hình Chi Tiết Bài Đăng Ở Ghép
-  void _openPostDetailModal(RoommatePostModel post) {
+  void _openSharedRoomDetail(RoommatePostModel post) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RoommatePostDetailScreen(post: post),
+        builder: (_) => RoommateRoomDetailScreen(post: post),
       ),
     );
   }
@@ -204,16 +225,8 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
         bottom: false,
         child: Column(
           children: [
-            // 1. App Bar chuẩn Figma
             _buildFigmaAppBar(profile),
 
-            // 2. Search & Filter Bar
-            _buildSearchAndFilterBar(count),
-
-            // 3. Quick Filter Chips
-            _buildQuickFilterChips(count),
-
-            // 4. Segment Tab Switcher: "Đang tìm người ghép (Có phòng)" vs "Người cần tìm phòng ghép"
             _buildSegmentTabSwitcher(),
 
             // 5. Danh sách bài đăng & Banner AI Matching
@@ -265,7 +278,10 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
           ),
           Row(
             children: [
-              // Notification Bell with Badge Dot
+              IconButton(
+                icon: const Icon(Icons.search_rounded, color: Color(0xFF334155), size: 26),
+                onPressed: _openRoommateSearch,
+              ),
               Stack(
                 alignment: Alignment.topRight,
                 children: [
@@ -303,157 +319,6 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
     );
   }
 
-  /// Search & Filter Row
-  Widget _buildSearchAndFilterBar(int matchingCount) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded, size: 20, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm người ghép theo trường học, quận...',
-                        hintStyle: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
-                      onChanged: (val) {
-                        setState(() {
-                          _currentFilters = _currentFilters.copyWith(searchQuery: val);
-                        });
-                      },
-                    ),
-                  ),
-                  if (_searchController.text.isNotEmpty)
-                    InkWell(
-                      onTap: () {
-                        _searchController.clear();
-                        setState(() {
-                          _currentFilters = _currentFilters.copyWith(searchQuery: '');
-                        });
-                      },
-                      child: const Icon(Icons.clear, size: 16, color: Color(0xFF94A3B8)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Nút Bộ Lọc (Icon Filter Tune tròn) -> Mở Hình 2
-          InkWell(
-            onTap: () => _openLifestyleFilterSheet(matchingCount),
-            borderRadius: BorderRadius.circular(22),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFCBD5E1)),
-              ),
-              child: const Icon(Icons.tune_rounded, size: 20, color: Color(0xFF334155)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Quick Filter Chips
-  Widget _buildQuickFilterChips(int matchingCount) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            // Chip Khu vực
-            _buildFilterPill(
-              label: _currentFilters.district == 'Tất cả' ? 'Khu vực: Toàn quốc' : 'Khu vực: ${_currentFilters.district}',
-              hasDropdown: true,
-              isSelected: _currentFilters.district != 'Tất cả',
-              onTap: () => _openLifestyleFilterSheet(matchingCount),
-            ),
-            const SizedBox(width: 8),
-            // Chip Giới tính
-            _buildFilterPill(
-              label: 'Giới tính: ${_currentFilters.targetGender}',
-              hasDropdown: true,
-              isSelected: _currentFilters.targetGender != 'Tất cả',
-              onTap: () => _openLifestyleFilterSheet(matchingCount),
-            ),
-            const SizedBox(width: 8),
-            // Chip Ngân sách
-            _buildFilterPill(
-              label: 'Ngân sách...',
-              hasDropdown: false,
-              isSelected: _currentFilters.budgetMin != null,
-              onTap: () => _openLifestyleFilterSheet(matchingCount),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterPill({
-    required String label,
-    required bool hasDropdown,
-    bool isSelected = false,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : const Color(0xFF334155),
-              ),
-            ),
-            if (hasDropdown) ...[
-              const SizedBox(width: 4),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                size: 16,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Segment Tab Switcher: "Đang tìm người ghép (Có phòng)" vs "Người cần tìm phòng ghép"
   Widget _buildSegmentTabSwitcher() {
@@ -655,7 +520,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
     }
 
     return InkWell(
-      onTap: () => _openPostDetailModal(post),
+      onTap: () => _openSharedRoomDetail(post),
       borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -735,7 +600,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
-                onTap: () => _openPostDetailModal(post),
+                onTap: () => _openSharedRoomDetail(post),
                 child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -784,13 +649,13 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: GestureDetector(
-                onTap: () => _openPostDetailModal(post),
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GestureDetector(
+                    onTap: () => _openSharedRoomDetail(post),
+                    behavior: HitTestBehavior.opaque,
+                    child: RichText(
                       text: TextSpan(
                         children: [
                           TextSpan(
@@ -812,8 +677,9 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                         ],
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Row(
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
                       children: [
                         Icon(
                           post.authorOccupation.contains('SV') || post.authorOccupation.contains('Sinh viên')
@@ -839,7 +705,6 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                     ),
                   ],
                 ),
-              ),
             ),
               // Nút Bookmark tròn bên phải
               InkWell(
@@ -1011,7 +876,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                 child: SizedBox(
                   height: 44,
                   child: ElevatedButton(
-                    onPressed: () => _openPostDetailModal(post),
+                    onPressed: () => _openSharedRoomDetail(post),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFEFF6FF),
                       foregroundColor: const Color(0xFF0F172A),

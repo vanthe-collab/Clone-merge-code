@@ -1434,3 +1434,57 @@ huquynh: https://github.com/23211tt0240-NhuQuynh/homeshare.git.
   1. `android/settings.gradle.kts`: gán `compileSdkVersion = 36` trên root project trước khi các plugin được cấu hình, đúng chỗ Agora đọc.
   2. `android/build.gradle.kts`: khai báo cùng giá trị 36, và ép `LibraryExtension.compileSdkVersion(36)` cho mọi module Android library sau khi Gradle nạp plugin. Nhánh này chạy cả khi project đã được đánh giá xong, tránh lỗi `Cannot run Project.afterEvaluate`.
 * **Kiểm thử:** `gradlew :agora_rtc_engine:checkDebugAarMetadata` — **BUILD SUCCESSFUL**. Task từng báo 20 lỗi AAR không còn thất bại. Chạy lại app bằng `flutter run` hoặc `flutter build apk --debug` để cài bản mới.
+
+---
+
+### Phase 2.35: Tách chi tiết phòng chủ nhà và chi tiết phòng ở ghép
+* **Ngày:** 07/10/2026
+* **File:** `lib/features/renter/screens/roommate_room_detail_screen.dart`
+* **Cách mở từ Tìm ở ghép:** bấm thẻ bài, avatar, tên, ảnh, giá, nghề, thói quen hoặc nút **Xem hồ sơ** đều mở `RoommateRoomDetailScreen`. Nút **Nhắn tin trao đổi** vẫn mở chat. Không còn mở `RoommatePostDetailScreen`.
+  * Tin chưa có phòng cũng vào màn mới này.
+  * Phòng chủ nhà trên Dashboard, bộ lọc và chat vẫn mở `RoomDetailScreen`.
+* **08/10/2026:** Bỏ dòng địa chỉ phía trên tiêu đề. Địa chỉ chỉ còn một lần, ngay dưới tiêu đề. Cỡ chữ trên màn tăng khoảng 2px. Các khối chính trong `roommate_room_detail_screen.dart` có chú thích tiếng Việt, phân biệt dữ liệu bài đăng và phần gắn tạm.
+
+#### Đã lấy từ bài tìm ở ghép (`roommate_posts`)
+* Id bài, người đăng (`authorId`, tên, tuổi, nghề, avatar, số điện thoại).
+* Tiêu đề, mô tả, địa chỉ, khu vực, thời điểm đăng.
+* Giá mỗi người. Nếu giá bằng 0 thì dùng ngân sách tối thiểu.
+* Ảnh bài. Không có ảnh thì hiện "Bài này chưa có ảnh", không chèn ảnh mẫu.
+* Đã có phòng / đang tìm phòng, giới tính mong muốn, cờ `isVerified`.
+* Phần trăm tương thích `matchRate`.
+* Danh sách thói quen `habits` nếu bài có ghi. Không có thì dùng 6 hashtag mẫu.
+* Chat và yêu cầu ghép nối gửi tới `authorId` của bài đó.
+
+#### Còn thiếu, đang hardcode — cần làm sau
+| Chỗ trên màn | Đang gắn tạm | Thiếu trên dữ liệu |
+| --- | --- | --- |
+| Dòng "Đã xác minh SV & CCCD" | Chỉ có cờ `isVerified` trên bài. Thiếu field thì model đang hiểu là đã xác minh | Cờ CCCD/VNeID và thẻ sinh viên trên `users/{authorId}`, không lấy từ bài |
+| 3 chip "khung giờ ngủ / nấu ăn / sạch sẽ" | Cố định | So khớp lối sống hai người. Bài chỉ có một số %, chưa có từng tiêu chí |
+| "Chính chủ duyệt", "đã gồm phí quản lý" | Cố định | Chưa có field duyệt bài và phí quản lý |
+| Tiền cọc | Gán bằng giá 1 tháng, ghi "ước tính" | Bài ở ghép không có `tienCoc` |
+| Ngày dọn vào 01/11/2024 | Cố định | Chưa có `ngayVao` trên tin |
+| Điện, wifi, gửi xe | Cố định | Chưa có bảng phí. `Kỳ ở` mới có chỉ số điện nước |
+| Tổng diện tích 56 m², phòng ngủ 18 m², quy mô 2 bạn | Cố định. Giới nam/nữ trên dòng quy mô lấy từ giới tính bài tìm | `Phòng.dienTichM2`, diện tích phòng ngủ, `sucChua` chưa gắn với tin ở ghép |
+| Tiện ích Sunview / quanh khu vực | Danh sách cố định, chỉ tên khu vực lấy từ bài | Bảng `Tiện ích` và `TienIch_Phong` |
+| Bản đồ "15 phút tới FTU CS2" | Cố định | `Địa điểm` kinh độ, vĩ độ, khoảng cách |
+| Chấm xanh đang online | Cố định | `lanHoatDongCuoi` của người đăng |
+| Nút yêu cầu ghép nối | Mở lời nhắn rồi vào chat | Chưa tạo document `YeuCauTraoDoiOGhep` theo `tinId` |
+| Xem hồ sơ trên thẻ bài | Mở chính màn chi tiết phòng ở ghép này | Không còn màn chi tiết bài cũ |
+
+#### Quan hệ với màn khác
+Sơ đồ `Database homeShare.drawio.xml`, gói Ở ghép / Nhà trọ / Đặt phòng. Firestore hiện gom phòng vào collection `rooms` và đơn vào `bookings` (ví dụ document `bookings/545VTMxaOJqaY09JkqfQ`), chưa tách các bảng con.
+
+**1-N**
+* Nhà trọ 1 — N Phòng (`Phòng.nhaTroId`). Màn này là một phòng.
+* Phòng 1 — N Ảnh phòng (`ẢnhPhong.phongId`). Dải ảnh trên màn.
+* Phòng 1 — N Bài đăng (`Bài đăng.phongId`). Tiêu đề, giá, mô tả đang nằm chung trên document phòng.
+* Phòng 1 — N Đơn đặt phòng (`Đơn.phongId`, collection `bookings`). Màn này không còn nút Đặt phòng nhanh.
+* Phòng 1 — N Kỳ ở, Kỳ ở 1 — N Cư dân. Người đang ở chưa có collection riêng.
+* Tin ở ghép 1 — N Yêu cầu trao đổi (`YeuCauTraoDoiOGhep.tinId`). Nút **Yêu cầu ghép nối** mới chỉ mở lời nhắn rồi vào chat, chưa tạo document yêu cầu.
+* Cuộc trò chuyện 1 — N Tin nhắn. Nút nhắn tin mở `ChatDetailScreen` với `authorId` của bài ở ghép.
+* Bài đăng 1 — N Báo cáo. Nút báo cáo nằm trong sheet **Xem hồ sơ**, mở `ReportHostScreen` và ghi `roomId` bằng id bài.
+
+**N-N**
+* Phòng N — N Tiện ích qua `TienIch_Phong` (khóa kép `phongId` + `tienIch_Id`). Khối tiện ích tòa nhà trên màn đang là danh sách tạm, chưa đọc bảng nối.
+* Người dùng N — N Sở thích qua `NguoiDung_SoThich`. Sáu tiêu chí thói quen trên màn là bản tạm của quan hệ này.
+* Người dùng N — N bài/tin qua `Yêu thích` (`nguoiDungId` + `loaiDoiTuong` + `doiTuongId`). Thiết kế màn này không có nút tim.
