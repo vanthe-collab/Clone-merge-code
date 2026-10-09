@@ -18,6 +18,8 @@ class RoommatePostModel {
   final double budgetMin; // nganSachTu
   final double budgetMax; // nganSachDen
   final String address; // diaChi
+  final double? latitude; // viDo, dùng để ghim bản đồ
+  final double? longitude; // kinhDo, dùng để ghim bản đồ
   final String district; // khuVuc / quanHuyen (diaDiemId)
   final String targetGender; // gioiTinhMongMuon: nu | nam | tatCa
   final List<String> habits; // thoiQuen / soThich
@@ -68,6 +70,8 @@ class RoommatePostModel {
     required this.budgetMin,
     required this.budgetMax,
     this.address = '',
+    this.latitude,
+    this.longitude,
     required this.district,
     required this.targetGender,
     required this.habits,
@@ -98,6 +102,8 @@ class RoommatePostModel {
     double? budgetMin,
     double? budgetMax,
     String? address,
+    double? latitude,
+    double? longitude,
     String? district,
     String? targetGender,
     List<String>? habits,
@@ -127,6 +133,8 @@ class RoommatePostModel {
       budgetMin: budgetMin ?? this.budgetMin,
       budgetMax: budgetMax ?? this.budgetMax,
       address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       district: district ?? this.district,
       targetGender: targetGender ?? this.targetGender,
       habits: habits ?? this.habits,
@@ -189,6 +197,8 @@ class RoommatePostModel {
       budgetMin: ((data['budgetMin'] ?? data['nganSachTu']) as num?)?.toDouble() ?? 1000000,
       budgetMax: ((data['budgetMax'] ?? data['nganSachDen']) as num?)?.toDouble() ?? 2500000,
       address: data['address'] ?? data['diaChi'] ?? '',
+      latitude: data['latitude'] is num ? (data['latitude'] as num).toDouble() : double.tryParse('${data['latitude'] ?? ''}'),
+      longitude: data['longitude'] is num ? (data['longitude'] as num).toDouble() : double.tryParse('${data['longitude'] ?? ''}'),
       district: data['district'] ?? data['quanHuyen'] ?? data['khuVuc'] ?? 'TP. Thủ Đức',
       targetGender: data['targetGender'] ?? data['gioiTinhMongMuon'] ?? 'Tất cả',
       habits: parsedHabits,
@@ -237,6 +247,8 @@ class RoommatePostModel {
       'nganSachDen': budgetMax,
       'address': address,
       'diaChi': address,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
       'district': district,
       'targetGender': targetGender,
       'gioiTinhMongMuon': targetGender,

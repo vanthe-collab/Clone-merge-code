@@ -7,6 +7,7 @@ import '../constants/vietnam_locations.dart';
 class RoommateFilterParams {
   final String province;
   final String district;
+  final String ward;
   final String targetGender;
   final bool? hasRoom; // null: Tất cả, true: Đã có phòng sẵn, false: Chưa có phòng
   final String occupation; // 'Tất cả', hoặc một nghề khi chỉ chọn một mục
@@ -20,6 +21,7 @@ class RoommateFilterParams {
   const RoommateFilterParams({
     this.province = 'Tất cả',
     this.district = 'Tất cả',
+    this.ward = 'Tất cả',
     this.targetGender = 'Tất cả',
     this.hasRoom,
     this.occupation = 'Tất cả',
@@ -34,6 +36,7 @@ class RoommateFilterParams {
   RoommateFilterParams copyWith({
     String? province,
     String? district,
+    String? ward,
     String? targetGender,
     bool? hasRoom,
     bool clearHasRoom = false,
@@ -48,6 +51,7 @@ class RoommateFilterParams {
     return RoommateFilterParams(
       province: province ?? this.province,
       district: district ?? this.district,
+      ward: ward ?? this.ward,
       targetGender: targetGender ?? this.targetGender,
       hasRoom: clearHasRoom ? null : (hasRoom ?? this.hasRoom),
       occupation: occupation ?? this.occupation,
@@ -66,6 +70,7 @@ class RoommateFilterParams {
       other is RoommateFilterParams &&
           province == other.province &&
           district == other.district &&
+          ward == other.ward &&
           targetGender == other.targetGender &&
           hasRoom == other.hasRoom &&
           occupation == other.occupation &&
@@ -80,6 +85,7 @@ class RoommateFilterParams {
   int get hashCode => Object.hash(
         province,
         district,
+        ward,
         targetGender,
         hasRoom,
         occupation,
@@ -106,6 +112,7 @@ class RoommateService {
   }) {
     final effectiveProvince = filters?.province ?? 'Tất cả';
     final effectiveDistrict = filters?.district ?? district;
+    final effectiveWard = filters?.ward ?? 'Tất cả';
     final effectiveTargetGender = filters?.targetGender ?? targetGender;
     final hasRoom = filters?.hasRoom;
     final occupation = filters?.occupation;
@@ -145,9 +152,13 @@ class RoommateService {
         }
       }
 
-      // Nạp dữ liệu mẫu Figma nếu danh sách bài đăng rỗng
-      if (merged.isEmpty) {
-        merged.addAll(getFigmaSamplePosts());
+      // Bỏ các bài mẫu cũ. Bài thật, gồm bài mới nhất của Trần Thanh Anh Toàn, vẫn giữ.
+      const obsoleteSampleIds = {'figma_post_1', 'figma_post_2', 'figma_post_3', 'figma_post_4'};
+      merged.removeWhere((post) => obsoleteSampleIds.contains(post.id));
+      for (final demo in getDemoRoommatePosts()) {
+        if (!merged.any((post) => post.id == demo.id)) {
+          merged.add(demo);
+        }
       }
 
       final filtered = merged.where((post) {
@@ -168,12 +179,17 @@ class RoommateService {
           }
         }
 
-        // 3. Tỉnh / thành phố, rồi tới quận hoặc phường nếu đã chọn
+        // 3. Tỉnh, quận, rồi phường/xã nếu đã chọn
         if (effectiveProvince.isNotEmpty && effectiveProvince != 'Tất cả') {
           if (!_postMatchesProvince(post, effectiveProvince)) return false;
         }
         if (effectiveDistrict != null && effectiveDistrict.isNotEmpty && effectiveDistrict != 'Tất cả') {
           if (!_placeHit(post.district, effectiveDistrict) && !_placeHit(post.address, effectiveDistrict)) {
+            return false;
+          }
+        }
+        if (effectiveWard.isNotEmpty && effectiveWard != 'Tất cả') {
+          if (!_placeHit(post.address, effectiveWard) && !_placeHit(post.district, effectiveWard)) {
             return false;
           }
         }
@@ -210,12 +226,11 @@ class RoommateService {
           }
         }
 
-        // 7. Lối sống & Thói quen bắt buộc
+        // 7. Mọi thói quen đã chọn đều phải có trên bài
         if (habits.isNotEmpty) {
-          final matchedCount = habits.where((h) => post.habits.contains(h)).length;
-          if (matchedCount == 0 && habits.length > 2) {
-            return false;
-          }
+          final postHabits = post.habits.map((item) => item.toLowerCase()).toSet();
+          final allMatch = habits.every((item) => postHabits.contains(item.toLowerCase()));
+          if (!allMatch) return false;
         }
 
         // 8. Tỷ lệ tương thích Match rate
@@ -246,117 +261,147 @@ class RoommateService {
     return savedPost;
   }
 
-  // Danh sách bài đăng mẫu chuẩn 100% Figma HomeShare
-  static List<RoommatePostModel> getFigmaSamplePosts() {
+  /// Vài bài cố định để thử tìm kiếm. Hai bài ở TP.HCM mỗi phía, một bài tỉnh khác để không ra hết.
+  static List<RoommatePostModel> getDemoRoommatePosts() {
+    final now = DateTime.now();
     return [
       RoommatePostModel(
-        id: 'figma_post_1',
-        authorId: 'user_minh_trang',
-        authorName: 'Minh Trang',
+        id: 'demo_has_room_lan',
+        authorId: 'demo_lan_anh',
+        authorName: 'Lan Anh',
         authorAge: 21,
         authorGender: 'Nữ',
-        authorOccupation: 'SV Đại học Ngoại Thương CS2',
-        authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-        title: 'Cần tìm 1 bạn nữ ở ghép căn hộ Sunview Town (Đã có phòng)',
-        description: 'Căn hộ 2PN2WC tại chung cư Sunview Town, lầu 12 thoáng mát. Đã trang bị đầy đủ máy giặt, tủ lạnh, bếp từ, máy nước nóng. Tìm 1 bạn nữ gọn gàng, tính tình vui vẻ, hòa đồng cùng share phòng.',
+        authorOccupation: 'Sinh viên',
+        title: 'Cần một bạn nữ ghép căn hộ Linh Trung',
+        description: 'Đã thuê căn 2 phòng ngủ ở Linh Trung, còn một chỗ. Mình học buổi sáng, về sớm.',
         postType: 'timNguoiOGhep',
         pricePerPerson: 1800000,
         budgetMin: 1500000,
         budgetMax: 2000000,
-        address: 'Hiệp Bình Phước, TP. Thủ Đức (Gần cầu Bình Triệu)',
-        district: 'TP. Thủ Đức',
+        address: 'Số 20 Đường Số 1, Phường Linh Trung, Thành phố Thủ Đức, TP. Hồ Chí Minh',
+        latitude: 10.8696,
+        longitude: 106.7782,
+        district: 'Thành phố Thủ Đức',
         targetGender: 'Nữ',
-        habits: ['Tuyệt đối không thuốc lá', 'Yên tĩnh sau 23h', 'Sạch sẽ, ngăn nắp cao', 'Thân thiện vui vẻ', 'Quy định dẫn bạn về phòng'],
-        images: [
-          'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600',
-          'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600',
-        ],
-        imageCaptions: ['Phòng ngủ máy lạnh', 'Bếp chung rộng'],
-        isVerified: true,
-        matchRate: 94,
+        habits: ['Sạch sẽ, ngăn nắp cao', 'Yên tĩnh sau 23h'],
         hasRoom: true,
-        contactPhone: '0981234567',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
+        contactPhone: '0901000001',
+        createdAt: now.subtract(const Duration(hours: 5)),
       ),
       RoommatePostModel(
-        id: 'figma_post_2',
-        authorId: 'user_quoc_bao',
-        authorName: 'Quốc Bảo',
-        authorAge: 22,
+        id: 'demo_has_room_khoa',
+        authorId: 'demo_minh_khoa',
+        authorName: 'Minh Khoa',
+        authorAge: 24,
         authorGender: 'Nam',
-        authorOccupation: 'Kỹ sư phần mềm mới ra trường',
-        authorAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400',
-        title: 'Cần tìm 1 bạn nam ghép phòng trọ D2 Bình Thạnh (Đã có phòng)',
-        description: 'Phòng trọ rộng 28m2 gác lửng, giờ giấc tự do không chung chủ, có chỗ để xe an toàn. Cần 1 bạn nam làm việc văn phòng hoặc sinh viên năm cuối cùng chia tiền phòng.',
+        authorOccupation: 'Người đi làm',
+        title: 'Ghép phòng Bình Thạnh, đã có nhà',
+        description: 'Phòng đã thuê gần chợ Bà Chiểu, tìm một bạn nam đi làm giờ hành chính.',
         postType: 'timNguoiOGhep',
-        pricePerPerson: 2200000,
-        budgetMin: 2000000,
-        budgetMax: 2500000,
-        address: 'Đường Nguyễn Gia Trí, P.25, Bình Thạnh',
-        district: 'Bình Thạnh',
+        pricePerPerson: 2800000,
+        budgetMin: 2500000,
+        budgetMax: 3000000,
+        address: '88 Đường D2, Phường 25, Quận Bình Thạnh, TP. Hồ Chí Minh',
+        latitude: 10.8036,
+        longitude: 106.7302,
+        district: 'Quận Bình Thạnh',
         targetGender: 'Nam',
-        habits: ['Giờ giấc tự do 24/7', 'Có xe máy riêng', 'Thích thể thao', 'Không tụ tập ồn ào'],
-        images: [
-          'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600',
-        ],
-        imageCaptions: ['Phòng trọ gác lửng'],
-        isVerified: true,
-        matchRate: 88,
+        habits: ['Giờ giấc tự do', 'Có xe máy riêng'],
         hasRoom: true,
-        contactPhone: '0912987654',
-        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
+        contactPhone: '0901000002',
+        createdAt: now.subtract(const Duration(hours: 8)),
       ),
       RoommatePostModel(
-        id: 'figma_post_3',
-        authorId: 'user_thuy_dung',
-        authorName: 'Thùy Dung',
+        id: 'demo_has_room_hamy',
+        authorId: 'demo_ha_my',
+        authorName: 'Hà My',
+        authorAge: 22,
+        authorGender: 'Nữ',
+        authorOccupation: 'Sinh viên',
+        title: 'Tìm bạn nữ ghép phòng Cầu Giấy',
+        description: 'Phòng ở Cầu Giấy đã có, chỉ nhận bạn nữ.',
+        postType: 'timNguoiOGhep',
+        pricePerPerson: 2500000,
+        budgetMin: 2000000,
+        budgetMax: 3000000,
+        address: '18 Trần Thái Tông, Phường Dịch Vọng, Cầu Giấy, Hà Nội',
+        latitude: 21.0360,
+        longitude: 105.7895,
+        district: 'Cầu Giấy',
+        targetGender: 'Nữ',
+        habits: ['Chăm học/Làm việc'],
+        hasRoom: true,
+        contactPhone: '0901000003',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      RoommatePostModel(
+        id: 'demo_need_room_phuong',
+        authorId: 'demo_phuong_anh',
+        authorName: 'Phương Anh',
         authorAge: 20,
         authorGender: 'Nữ',
-        authorOccupation: 'SV ĐH Sư Phạm Kỹ Thuật (HCMUT)',
-        authorAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400',
-        title: 'Muốn tìm 1 bạn nữ tính tình hòa đồng cùng tìm & thuê phòng quanh ĐH Sư...',
-        description: 'Mình là sinh viên năm 2 ĐH Sư Phạm Kỹ Thuật, muốn tìm 1 bạn nữ cùng gu để cùng đi tìm và thuê phòng trọ bán kính 2km quanh ngã tư Thủ Đức. Ngân sách tầm 1.5 - 2 triệu/tháng.',
+        authorOccupation: 'Sinh viên',
+        title: 'Tìm bạn nữ cùng thuê phòng Quận 7',
+        description: 'Mình chưa có phòng, muốn kiếm một bạn nữ cùng xem phòng quanh Quận 7.',
         postType: 'dangTimPhong',
-        pricePerPerson: 1750000,
-        budgetMin: 1500000,
-        budgetMax: 2000000,
-        address: 'Bán kính 2km quanh ngã tư Thủ Đức',
-        district: 'TP. Thủ Đức',
+        pricePerPerson: 1600000,
+        budgetMin: 1400000,
+        budgetMax: 1800000,
+        address: '88 Nguyễn Thị Thập, Phường Tân Phong, Quận 7, TP. Hồ Chí Minh',
+        latitude: 10.7312,
+        longitude: 106.7204,
+        district: 'Quận 7',
         targetGender: 'Nữ',
-        habits: ['Chăm học, ít ồn', 'Nấu ăn tại phòng', 'Dậy sớm (Trước 7h)', 'Sạch sẽ, ngăn nắp cao'],
-        images: [],
-        imageCaptions: [],
-        isVerified: true,
-        matchRate: 91,
+        habits: ['Nấu ăn thường xuyên', 'Sạch sẽ, ngăn nắp cao'],
         hasRoom: false,
-        contactPhone: '0903456789',
-        createdAt: DateTime.now().subtract(const Duration(hours: 8)),
+        contactPhone: '0901000004',
+        createdAt: now.subtract(const Duration(hours: 6)),
       ),
       RoommatePostModel(
-        id: 'figma_post_4',
-        authorId: 'user_huy_hoang',
-        authorName: 'Huy Hoàng',
+        id: 'demo_need_room_duc',
+        authorId: 'demo_duc_anh',
+        authorName: 'Đức Anh',
+        authorAge: 25,
+        authorGender: 'Nam',
+        authorOccupation: 'Freelancer',
+        title: 'Cần bạn nam cùng tìm phòng Gò Vấp',
+        description: 'Làm việc ở nhà, chưa thuê phòng, muốn tìm một bạn nam cùng gu ở Gò Vấp.',
+        postType: 'dangTimPhong',
+        pricePerPerson: 2600000,
+        budgetMin: 2400000,
+        budgetMax: 2800000,
+        address: '102 Quang Trung, Phường 16, Quận Gò Vấp, TP. Hồ Chí Minh',
+        latitude: 10.8380,
+        longitude: 106.6648,
+        district: 'Quận Gò Vấp',
+        targetGender: 'Nam',
+        habits: ['Tuyệt đối không thuốc lá'],
+        hasRoom: false,
+        contactPhone: '0901000005',
+        createdAt: now.subtract(const Duration(hours: 10)),
+      ),
+      RoommatePostModel(
+        id: 'demo_need_room_viet',
+        authorId: 'demo_quoc_viet',
+        authorName: 'Quốc Việt',
         authorAge: 23,
         authorGender: 'Nam',
-        authorOccupation: 'Freelancer / WFH',
-        authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-        title: 'Tìm bạn cùng thuê căn hộ dịch vụ Quận 1 hoặc Bình Thạnh',
-        description: 'Làm việc tự do tại nhà, cần không gian làm việc yên tĩnh, có ban công thoáng mát và tôn trọng sự riêng tư của nhau.',
+        authorOccupation: 'Người đi làm',
+        title: 'Tìm bạn cùng thuê phòng Hải Châu',
+        description: 'Mình ở Đà Nẵng, chưa có phòng, tìm một bạn nam cùng thuê.',
         postType: 'dangTimPhong',
-        pricePerPerson: 3000000,
-        budgetMin: 2500000,
-        budgetMax: 3500000,
-        address: 'Khu vực Đa Kao, Quận 1',
-        district: 'Quận 1',
+        pricePerPerson: 1500000,
+        budgetMin: 1200000,
+        budgetMax: 1800000,
+        address: '36 Bạch Đằng, Phường Hải Châu, Hải Châu, Đà Nẵng',
+        latitude: 16.0715,
+        longitude: 108.2238,
+        district: 'Hải Châu',
         targetGender: 'Nam',
-        habits: ['Yên tĩnh sau 23h', 'Tuyệt đối không thuốc lá', 'Thú cưng (Chó/Mèo)', 'Không mở loa to'],
-        images: [],
-        imageCaptions: [],
-        isVerified: true,
-        matchRate: 85,
+        habits: ['Giờ giấc tự do'],
         hasRoom: false,
-        contactPhone: '0938112233',
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+        contactPhone: '0901000006',
+        createdAt: now.subtract(const Duration(days: 3)),
       ),
     ];
   }

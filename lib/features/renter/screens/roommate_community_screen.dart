@@ -35,32 +35,16 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
 
   final Set<String> _bookmarkedPostIds = {};
 
-  Future<void> _openRoommateSearch() async {
-    final result = await Navigator.push<RoommateSearchResult>(
+  void _openRoommateSearch() {
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => RoommateSearchScreen(
-          initialProvince: _currentFilters.province == 'Tất cả' ? 'TP. Hồ Chí Minh' : _currentFilters.province,
+          initialProvince: 'TP. Hồ Chí Minh',
           initialHasRoom: _currentFilters.hasRoom != false,
-          initialFilters: _currentFilters,
         ),
       ),
     );
-    if (result == null || !mounted) return;
-    setState(() {
-      _currentFilters = _currentFilters.copyWith(
-        province: result.province,
-        district: result.district,
-        hasRoom: result.hasRoom,
-        targetGender: result.targetGender,
-        occupation: result.occupation,
-        occupations: result.occupations,
-        habits: result.habits,
-        minMatchRate: result.minMatchRate,
-        budgetMin: result.budgetMin,
-        budgetMax: result.budgetMax,
-      );
-    });
   }
 
   /// Mở Bottom Sheet "Bộ lọc Lifestyle & Ở ghép AI Match" (Hình 2)

@@ -8,12 +8,16 @@ class RoommateLifestyleFilterSheet extends StatefulWidget {
   final RoommateFilterParams initialFilters;
   final int matchingCount;
   final ValueChanged<RoommateFilterParams> onApply;
+  final bool embedded;
+  final ValueChanged<RoommateFilterParams>? onChanged;
 
   const RoommateLifestyleFilterSheet({
     super.key,
     required this.initialFilters,
     this.matchingCount = 0,
     required this.onApply,
+    this.embedded = false,
+    this.onChanged,
   });
 
   static Future<RoommateFilterParams?> show(
@@ -100,6 +104,36 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
     }
 
     _matchRate = widget.initialFilters.minMatchRate;
+    if (widget.embedded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _notify());
+    }
+  }
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    if (widget.embedded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _notify());
+    }
+  }
+
+  RoommateFilterParams _snapshot() {
+    return widget.initialFilters.copyWith(
+      hasRoom: widget.embedded ? null : _hasRoom,
+      clearHasRoom: !widget.embedded && _hasRoom == null,
+      targetGender: _selectedGender,
+      occupation: _selectedOccupations.length == 1 ? _selectedOccupations.first : 'Tất cả',
+      occupations: _selectedOccupations.toList(),
+      budgetMin: _budgetRange.start,
+      budgetMax: _budgetRange.end,
+      habits: _selectedHabits.toList(),
+      minMatchRate: _matchRate,
+    );
+  }
+
+  void _notify() {
+    if (!mounted || !widget.embedded) return;
+    widget.onChanged?.call(_snapshot());
   }
 
   late List<String> _habitOptions;
@@ -147,19 +181,26 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
   }
 
   void _applyFilters() {
-    final updated = widget.initialFilters.copyWith(
-      hasRoom: _hasRoom,
-      clearHasRoom: _hasRoom == null,
-      targetGender: _selectedGender,
-      occupation: _selectedOccupations.length == 1 ? _selectedOccupations.first : 'Tất cả',
-      occupations: _selectedOccupations.toList(),
-      budgetMin: _budgetRange.start,
-      budgetMax: _budgetRange.end,
-      habits: _selectedHabits.toList(),
-      minMatchRate: _matchRate,
-    );
+    final updated = _snapshot();
     widget.onApply(updated);
     Navigator.pop(context, updated);
+  }
+
+  List<Widget> _formSections() {
+    return [
+      if (!widget.embedded) ...[
+        _buildSection1RoomStatus(),
+        const SizedBox(height: 22),
+      ],
+      _buildSection2TargetCriteria(),
+      const SizedBox(height: 22),
+      _buildSection3Budget(),
+      const SizedBox(height: 22),
+      _buildSection4LifestyleHabits(),
+      const SizedBox(height: 22),
+      _buildSection5MatchRate(),
+      const SizedBox(height: 12),
+    ];
   }
 
   String _formatBudget(double value) {
@@ -172,6 +213,13 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _formSections(),
+      );
+    }
+
     final mediaQuery = MediaQuery.of(context);
     final sheetHeight = mediaQuery.size.height * 0.90;
 
@@ -262,27 +310,7 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              children: [
-                // 1. TÌNH TRẠNG PHÒNG
-                _buildSection1RoomStatus(),
-                const SizedBox(height: 22),
-
-                // 2. ĐỐI TƯỢNG PHÙ HỢP
-                _buildSection2TargetCriteria(),
-                const SizedBox(height: 22),
-
-                // 3. NGÂN SÁCH MỖI NGƯỜI
-                _buildSection3Budget(),
-                const SizedBox(height: 22),
-
-                // 4. TIÊU CHÍ LỐI SỐNG & THÓI QUEN
-                _buildSection4LifestyleHabits(),
-                const SizedBox(height: 22),
-
-                // 5. MỨC ĐỘ TƯƠNG THÍCH (MATCH RATE)
-                _buildSection5MatchRate(),
-                const SizedBox(height: 30),
-              ],
+              children: _formSections(),
             ),
           ),
 
@@ -747,33 +775,45 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         ...options.map((item) {
           final isSelected = selected.contains(item);
-          return InkWell(
-            onTap: () => onToggle(item),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                    size: 22,
-                    color: isSelected ? AppColors.primary : const Color(0xFF94A3B8),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: const Color(0xFF0F172A),
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            elevation: 0,
+            color: isSelected ? AppColors.primarySurface : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0),
+                width: isSelected ? 1.4 : 1,
+              ),
+            ),
+            child: InkWell(
+              onTap: () => onToggle(item),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      isSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                      size: 22,
+                      color: isSelected ? AppColors.primary : const Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: const Color(0xFF0F172A),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

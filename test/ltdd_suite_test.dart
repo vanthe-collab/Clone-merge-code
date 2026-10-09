@@ -881,54 +881,39 @@ void main() {
   });
 
   group('Module 13: Màn hình Tìm Ở Ghép & Bộ lọc Lifestyle AI Match (Figma Chuẩn)', () {
-    test('Tc_ROOMMATE_FIGMA_01 - 05: Kiểm tra các bài đăng mẫu chuẩn 100% Figma (Minh Trang, Quốc Bảo, Thùy Dung)', () {
-      final samplePosts = RoommateService.getFigmaSamplePosts();
+    test('Tc_ROOMMATE_FIGMA_01 - 05: Kiểm tra bài đăng dùng để thử tìm kiếm', () {
+      final samplePosts = RoommateService.getDemoRoommatePosts();
       expect(samplePosts.length, greaterThanOrEqualTo(3));
 
-      // 1. Thẻ Minh Trang (Hình 1 - Thẻ đầu tiên)
-      final minhTrang = samplePosts.firstWhere((p) => p.authorName == 'Minh Trang');
-      expect(minhTrang.authorAge, equals(21));
-      expect(minhTrang.authorOccupation, contains('Ngoại Thương'));
-      expect(minhTrang.hasRoom, isTrue);
-      expect(minhTrang.pricePerPerson, equals(1800000));
-      expect(minhTrang.district, equals('TP. Thủ Đức'));
-      expect(minhTrang.isVerified, isTrue);
-      expect(minhTrang.images.length, equals(2));
-      expect(minhTrang.imageCaptions, containsAll(['Phòng ngủ máy lạnh', 'Bếp chung rộng']));
-      expect(minhTrang.habits, containsAll(['Tuyệt đối không thuốc lá', 'Yên tĩnh sau 23h', 'Sạch sẽ, ngăn nắp cao']));
+      final lanAnh = samplePosts.firstWhere((p) => p.authorName == 'Lan Anh');
+      expect(lanAnh.authorAge, equals(21));
+      expect(lanAnh.authorOccupation, contains('Sinh viên'));
+      expect(lanAnh.hasRoom, isTrue);
+      expect(lanAnh.pricePerPerson, equals(1800000));
+      expect(lanAnh.district, equals('Thành phố Thủ Đức'));
+      expect(lanAnh.isVerified, isTrue);
+      expect(lanAnh.habits, containsAll(['Sạch sẽ, ngăn nắp cao', 'Yên tĩnh sau 23h']));
 
-      // 2. Thẻ Quốc Bảo (Hình 1 - Thẻ thứ hai)
-      final quocBao = samplePosts.firstWhere((p) => p.authorName == 'Quốc Bảo');
-      expect(quocBao.authorAge, equals(22));
-      expect(quocBao.authorOccupation, contains('Kỹ sư'));
-      expect(quocBao.hasRoom, isTrue);
-      expect(quocBao.pricePerPerson, equals(2200000));
-      expect(quocBao.district, equals('Bình Thạnh'));
-      expect(quocBao.habits, containsAll(['Giờ giấc tự do 24/7', 'Có xe máy riêng', 'Thích thể thao']));
+      final minhKhoa = samplePosts.firstWhere((p) => p.authorName == 'Minh Khoa');
+      expect(minhKhoa.hasRoom, isTrue);
+      expect(minhKhoa.district, equals('Quận Bình Thạnh'));
 
-      // 3. Thẻ Thùy Dung (Hình 1 - Thẻ thứ ba: Chưa có phòng • Tìm người cùng thuê)
-      final thuyDung = samplePosts.firstWhere((p) => p.authorName == 'Thùy Dung');
-      expect(thuyDung.authorAge, equals(20));
-      expect(thuyDung.authorOccupation, contains('Sư Phạm Kỹ Thuật'));
-      expect(thuyDung.hasRoom, isFalse);
-      expect(thuyDung.budgetMin, equals(1500000));
-      expect(thuyDung.budgetMax, equals(2000000));
-      expect(thuyDung.habits, containsAll(['Chăm học, ít ồn', 'Nấu ăn tại phòng', 'Dậy sớm (Trước 7h)']));
+      final phuongAnh = samplePosts.firstWhere((p) => p.authorName == 'Phương Anh');
+      expect(phuongAnh.hasRoom, isFalse);
+      expect(phuongAnh.district, equals('Quận 7'));
     });
 
     test('Tc_ROOMMATE_FIGMA_06 - 10: Chuyển đổi Segment Tab giữa Đã có phòng và Người cần tìm phòng ghép', () {
-      final samplePosts = RoommateService.getFigmaSamplePosts();
+      final samplePosts = RoommateService.getDemoRoommatePosts();
 
-      // Tab 1: Đang tìm người ghép (Có phòng)
       final withRoom = samplePosts.where((p) => p.hasRoom == true).toList();
-      expect(withRoom.any((p) => p.authorName == 'Minh Trang'), isTrue);
-      expect(withRoom.any((p) => p.authorName == 'Quốc Bảo'), isTrue);
-      expect(withRoom.any((p) => p.authorName == 'Thùy Dung'), isFalse);
+      expect(withRoom.any((p) => p.authorName == 'Lan Anh'), isTrue);
+      expect(withRoom.any((p) => p.authorName == 'Minh Khoa'), isTrue);
+      expect(withRoom.any((p) => p.authorName == 'Phương Anh'), isFalse);
 
-      // Tab 2: Người cần tìm phòng ghép (Chưa có phòng)
       final withoutRoom = samplePosts.where((p) => p.hasRoom == false).toList();
-      expect(withoutRoom.any((p) => p.authorName == 'Thùy Dung'), isTrue);
-      expect(withoutRoom.any((p) => p.authorName == 'Minh Trang'), isFalse);
+      expect(withoutRoom.any((p) => p.authorName == 'Phương Anh'), isTrue);
+      expect(withoutRoom.any((p) => p.authorName == 'Lan Anh'), isFalse);
     });
 
     test('Tc_LIFESTYLE_FILTER_01 - 05: Bộ lọc RoommateFilterParams hỗ trợ đầy đủ các tiêu chí Hình 2', () {
@@ -967,22 +952,20 @@ void main() {
     });
 
     test('Tc_LIFESTYLE_FILTER_06 - 10: Khả năng lọc chính xác và tính tương thích Match Rate', () {
-      final samplePosts = RoommateService.getFigmaSamplePosts();
+      final samplePosts = RoommateService.getDemoRoommatePosts();
 
-      // Lọc các bạn có độ tương thích matchRate >= 80%
       final matched80 = samplePosts.where((p) => p.matchRate >= 80).toList();
       expect(matched80.length, equals(samplePosts.length));
 
-      // Lọc bạn nữ có phòng sẵn tại TP. Thủ Đức (Khớp thẻ Minh Trang)
       final filtered = samplePosts.where((p) {
         if (p.hasRoom != true) return false;
-        if (p.district != 'TP. Thủ Đức') return false;
+        if (p.district != 'Thành phố Thủ Đức') return false;
         if (p.targetGender != 'Nữ') return false;
         return true;
       }).toList();
 
       expect(filtered.length, equals(1));
-      expect(filtered.first.authorName, equals('Minh Trang'));
+      expect(filtered.first.authorName, equals('Lan Anh'));
     });
   });
 

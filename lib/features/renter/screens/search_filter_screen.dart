@@ -1583,12 +1583,12 @@ class LocationSearchBottomSheetState extends State<LocationSearchBottomSheet> {
                     displayName,
                     style: TextStyle(
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected ? const Color(0xFF006948) : AppColors.textDark,
+                      color: isSelected ? AppColors.primary : AppColors.textDark,
                       fontSize: 14,
                     ),
                   ),
                   trailing: isSelected
-                      ? const Icon(Icons.check, color: Color(0xFF006948), size: 20)
+                      ? const Icon(Icons.check, color: AppColors.primary, size: 20)
                       : null,
                   onTap: () {
                     widget.onSelected(item);

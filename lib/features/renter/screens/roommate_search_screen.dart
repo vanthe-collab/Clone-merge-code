@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/vietnam_locations.dart';
+import '../../../data/models/roommate_post_model.dart';
+import '../../../core/theme/phong_sang_theme.dart';
 import '../../../core/services/roommate_service.dart';
 import 'roommate_lifestyle_filter_sheet.dart';
+import 'roommate_room_detail_screen.dart';
 import 'search_filter_screen.dart';
 
 /// Kết quả bộ lọc ở ghép trả về màn danh sách.
@@ -34,7 +37,7 @@ class RoommateSearchResult {
 
 /// Bộ lọc tìm ở ghép, cùng khung với tìm phòng trên trang chủ.
 /// Chỗ hình thức thuê đổi thành Đã có phòng / Chưa có phòng.
-class RoommateSearchScreen extends StatefulWidget {
+class RoommateSearchScreen extends ConsumerStatefulWidget {
   final String initialProvince;
   final bool initialHasRoom;
   final RoommateFilterParams initialFilters;
@@ -47,21 +50,21 @@ class RoommateSearchScreen extends StatefulWidget {
   });
 
   @override
-  State<RoommateSearchScreen> createState() => _RoommateSearchScreenState();
+  ConsumerState<RoommateSearchScreen> createState() => _RoommateSearchScreenState();
 }
 
-class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
-  static const Color _emerald = Color(0xFF006948);
-  static const Color _emeraldLight = Color(0xFFE8F5E9);
-  static const Color _lavenderBg = Color(0xFFE8F5E9);
-  static const Color _lavenderBorder = Color(0xFFA5D6A7);
-  static const Color _lavenderText = Color(0xFF006948);
+class _RoommateSearchScreenState extends ConsumerState<RoommateSearchScreen> {
+  static const Color _accent = PhongSangColors.accent;
+  static const Color _accentSoft = PhongSangColors.accentSoft;
 
   late String _selectedCity;
   String _selectedDistrict = 'Tất cả';
   String _selectedWard = 'Tất cả';
   late bool _hasRoom;
   late RoommateFilterParams _advanced;
+  bool _advancedExpanded = false;
+  bool _hasSearched = false;
+  RoommateFilterParams _activeQuery = const RoommateFilterParams();
 
   List<String> get _districts {
     if (_selectedCity == 'Tất cả') return const ['Tất cả'];
@@ -81,17 +84,8 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
     _advanced = widget.initialFilters;
   }
 
-  void _openAdvanced() {
-    RoommateLifestyleFilterSheet.show(
-      context,
-      initialFilters: _advanced.copyWith(hasRoom: _hasRoom),
-      onApply: (updated) {
-        setState(() {
-          _advanced = updated;
-          if (updated.hasRoom != null) _hasRoom = updated.hasRoom!;
-        });
-      },
-    );
+  void _toggleAdvanced() {
+    setState(() => _advancedExpanded = !_advancedExpanded);
   }
 
   void _showCityPicker() {
@@ -139,6 +133,11 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
             _selectedDistrict = dist;
             _selectedWard = 'Tất cả';
           });
+          if (dist != 'Tất cả') {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _showWardPicker();
+            });
+          }
         },
       ),
     );
@@ -165,42 +164,43 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
   }
 
   void _submit() {
-    final place = _selectedWard != 'Tất cả'
-        ? _selectedWard
-        : (_selectedDistrict != 'Tất cả' ? _selectedDistrict : 'Tất cả');
-    Navigator.pop(
-      context,
-      RoommateSearchResult(
+    setState(() {
+      _hasSearched = true;
+      _advancedExpanded = false;
+      _activeQuery = RoommateFilterParams(
         province: _selectedCity,
-        district: place,
+        district: _selectedDistrict,
+        ward: _selectedWard,
         hasRoom: _hasRoom,
-        budgetMin: _advanced.budgetMin,
-        budgetMax: _advanced.budgetMax,
         targetGender: _advanced.targetGender,
         occupation: _advanced.occupation,
         occupations: _advanced.occupations,
         habits: _advanced.habits,
+        budgetMin: _advanced.budgetMin,
+        budgetMax: _advanced.budgetMax,
         minMatchRate: _advanced.minMatchRate,
-      ),
-    );
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF9),
+    return Theme(
+      data: PhongSangTheme.light,
+      child: Scaffold(
+      backgroundColor: PhongSangColors.paper,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textDark),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, size: 22),
+          onPressed: () {
+            if (_hasSearched) {
+              setState(() => _hasSearched = false);
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
-        title: const Text(
-          'Tìm kiếm',
-          style: TextStyle(color: AppColors.textDark, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        title: Text('Tìm kiếm', style: PhongSangText.roomName),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -208,7 +208,31 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_hasSearched) ...[
+              _buildCompactFilterBar(),
+              const SizedBox(height: 16),
+              _buildResults(ref.watch(roommatePostsStreamProvider(_activeQuery))),
+            ] else ...[
             _buildLocationCard(),
+            if (_advancedExpanded) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                decoration: BoxDecoration(
+                  color: PhongSangColors.card,
+                  borderRadius: BorderRadius.circular(PhongSangRadii.card),
+                  border: Border.all(color: PhongSangColors.line),
+                  boxShadow: PhongSangTokens.standard.shadow,
+                ),
+                child: RoommateLifestyleFilterSheet(
+                  embedded: true,
+                  initialFilters: _advanced,
+                  onApply: (_) {},
+                  onChanged: (updated) => setState(() => _advanced = updated),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -216,49 +240,161 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
               child: ElevatedButton.icon(
                 onPressed: _submit,
                 icon: const Icon(Icons.search, size: 20, color: Colors.white),
-                label: const Text(
-                  'Tìm kiếm phòng',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
+                label: Text('Tìm kiếm', style: PhongSangText.button),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _emerald,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: _accent,
+                  foregroundColor: PhongSangColors.onAccent,
+                  minimumSize: const Size.fromHeight(44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(PhongSangRadii.control)),
                   elevation: 0,
+                  textStyle: PhongSangText.button,
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.circle, size: 6, color: _emerald),
-                SizedBox(width: 6),
+                const Icon(Icons.circle, size: 6, color: _accent),
+                const SizedBox(width: 6),
                 Text(
                   'Hơn 12.400+ phòng trọ chính chủ đang sẵn sàng',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: PhongSangText.caption,
                 ),
               ],
             ),
+            ],
           ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildCompactFilterBar() {
+    final status = _hasRoom ? 'Đã có phòng' : 'Chưa có phòng';
+    final place = _selectedWard != 'Tất cả'
+        ? '$_selectedWard, $_selectedCity'
+        : (_selectedDistrict == 'Tất cả' ? _selectedCity : '$_selectedDistrict, $_selectedCity');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: PhongSangColors.card,
+        borderRadius: BorderRadius.circular(PhongSangRadii.card),
+        border: Border.all(color: PhongSangColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on, size: 18, color: _accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$place • $status',
+              style: PhongSangText.label(color: PhongSangColors.ink, fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() => _hasSearched = false),
+            child: Text('Đổi bộ lọc', style: PhongSangText.button.copyWith(color: _accent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResults(AsyncValue<List<RoommatePostModel>> postsAsync) {
+    return postsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator(color: _accent)),
+      ),
+      error: (err, _) => Text('Không tải được bài đăng: $err', style: PhongSangText.body),
+      data: (posts) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Kết quả tìm kiếm (${posts.length} bài)', style: PhongSangText.roomName.copyWith(fontSize: 16)),
+            const SizedBox(height: 12),
+            if (posts.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+                decoration: BoxDecoration(
+                  color: PhongSangColors.card,
+                  borderRadius: BorderRadius.circular(PhongSangRadii.card),
+                  border: Border.all(color: PhongSangColors.line),
+                ),
+                child: Text(
+                  'Không có bài khớp. Hãy bỏ phường/xã hoặc chọn lại Đã có phòng / Chưa có phòng.',
+                  style: PhongSangText.body,
+                  textAlign: TextAlign.center,
+                ),
+              )
+            else
+              ...posts.map(_buildResultCard),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildResultCard(RoommatePostModel post) {
+    final millions = post.pricePerPerson / 1000000;
+    final price = '${millions.toStringAsFixed(millions.truncateToDouble() == millions ? 0 : 1)} triệu/người';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: PhongSangColors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PhongSangRadii.card),
+          side: const BorderSide(color: PhongSangColors.line),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(PhongSangRadii.card),
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => RoommateRoomDetailScreen(post: post)));
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: _accentSoft,
+                  child: Text(post.authorName.isEmpty ? '?' : post.authorName.characters.first, style: PhongSangText.label(color: _accent)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(post.authorName, style: PhongSangText.label(color: PhongSangColors.ink, fontSize: 14)),
+                      const SizedBox(height: 2),
+                      Text(post.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: PhongSangText.body.copyWith(color: PhongSangColors.ink)),
+                      const SizedBox(height: 4),
+                      Text('${post.district} • $price', style: PhongSangText.caption),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLocationCard() {
-    final placeLabel = _selectedDistrict == 'Tất cả'
-        ? 'Chọn Phường / Xã'
-        : (_selectedWard == 'Tất cả' ? _selectedDistrict : '$_selectedWard, $_selectedDistrict');
+    final districtLabel = _selectedDistrict == 'Tất cả' ? 'Chọn Quận / Huyện' : _selectedDistrict;
+    final wardLabel = _selectedWard == 'Tất cả' ? 'Chọn Phường / Xã' : _selectedWard;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        color: PhongSangColors.card,
+        borderRadius: BorderRadius.circular(PhongSangRadii.card),
+        border: Border.all(color: PhongSangColors.line),
+        boxShadow: PhongSangTokens.standard.shadow,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -269,10 +405,10 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
               Container(
                 width: 3.5,
                 height: 16,
-                decoration: BoxDecoration(color: _emerald, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(width: 6),
-              const Text('Khu vực', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+              Text('Khu vực', style: PhongSangText.roomName.copyWith(fontSize: 16)),
             ],
           ),
           const SizedBox(height: 14),
@@ -280,18 +416,20 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
           const SizedBox(height: 6),
           _buildLocationDropdown(label: _selectedCity, icon: Icons.near_me_outlined, onTap: _showCityPicker),
           const SizedBox(height: 12),
+          _buildFieldLabel('Quận / Huyện'),
+          const SizedBox(height: 6),
+          _buildLocationDropdown(
+            label: districtLabel,
+            icon: Icons.map_outlined,
+            onTap: _showDistrictPicker,
+          ),
+          const SizedBox(height: 12),
           _buildFieldLabel('Phường / Xã'),
           const SizedBox(height: 6),
           _buildLocationDropdown(
-            label: placeLabel,
-            icon: Icons.map_outlined,
-            onTap: () {
-              if (_selectedDistrict == 'Tất cả') {
-                _showDistrictPicker();
-              } else {
-                _showWardPicker();
-              }
-            },
+            label: wardLabel,
+            icon: Icons.location_on_outlined,
+            onTap: _showWardPicker,
           ),
           const SizedBox(height: 14),
           _buildFieldLabel('Tình trạng phòng'),
@@ -320,22 +458,25 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
           Padding(
               padding: const EdgeInsets.only(top: 14),
               child: InkWell(
-                onTap: _openAdvanced,
-                borderRadius: BorderRadius.circular(10),
+                onTap: _toggleAdvanced,
+                borderRadius: BorderRadius.circular(PhongSangRadii.control),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
-                    color: _lavenderBg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _lavenderBorder),
+                    color: _accentSoft,
+                    borderRadius: BorderRadius.circular(PhongSangRadii.control),
+                    border: Border.all(color: PhongSangColors.line),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add, size: 18, color: _lavenderText),
-                      SizedBox(width: 6),
-                      Text('Nâng cao', style: TextStyle(color: _lavenderText, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Icon(_advancedExpanded ? Icons.remove : Icons.add, size: 18, color: _accent),
+                      const SizedBox(width: 6),
+                      Text(
+                        _advancedExpanded ? 'Thu gọn' : 'Nâng cao',
+                        style: PhongSangText.button.copyWith(color: _accent),
+                      ),
                     ],
                   ),
                 ),
@@ -347,7 +488,7 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
   }
 
   Widget _buildFieldLabel(String label) {
-    return Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textDark));
+    return Text(label, style: PhongSangText.label(color: PhongSangColors.ink, fontSize: 12));
   }
 
   Widget _buildLocationDropdown({
@@ -357,22 +498,22 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(PhongSangRadii.control),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          color: PhongSangColors.priceSoft,
+          borderRadius: BorderRadius.circular(PhongSangRadii.control),
+          border: Border.all(color: PhongSangColors.line),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: _emerald),
+            Icon(icon, size: 18, color: _accent),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Text(label, style: PhongSangText.search, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
-            const Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.textMuted),
+            const Icon(Icons.keyboard_arrow_down, size: 18, color: PhongSangColors.muted),
           ],
         ),
       ),
@@ -387,36 +528,32 @@ class _RoommateSearchScreenState extends State<RoommateSearchScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(PhongSangRadii.control),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: selected ? _emeraldLight : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? _emerald : const Color(0xFFE5E7EB), width: selected ? 1.5 : 1),
+          color: selected ? _accentSoft : PhongSangColors.card,
+          borderRadius: BorderRadius.circular(PhongSangRadii.control),
+          border: Border.all(color: selected ? _accent : PhongSangColors.line, width: selected ? 1.5 : 1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: selected ? _emerald : AppColors.textMuted),
+            Icon(icon, size: 16, color: selected ? _accent : PhongSangColors.muted),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                  color: selected ? _emerald : AppColors.textDark,
-                ),
+                style: PhongSangText.label(color: selected ? _accent : PhongSangColors.ink, fontSize: 12),
               ),
             ),
             const SizedBox(width: 2),
             Icon(
               selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
               size: 14,
-              color: selected ? _emerald : const Color(0xFFD1D5DB),
+              color: selected ? _accent : PhongSangColors.line,
             ),
           ],
         ),

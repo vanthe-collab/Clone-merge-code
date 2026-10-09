@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/roommate_post_model.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -23,8 +25,8 @@ class _HabitItem {
 /// Phòng của chủ nhà không dùng màn này.
 ///
 /// Dữ liệu thật lấy từ [RoommatePostModel]: người đăng, tiêu đề, mô tả,
-/// địa chỉ, giá, ảnh, thói quen, giới tính cần tìm, thời điểm đăng.
-/// Phần chưa có field (diện tích, phí điện nước, bản đồ, chip hòa hợp)
+/// địa chỉ, giá, ảnh, thói quen, giới tính cần tìm, thời điểm đăng, bản đồ.
+/// Phần chưa có field (diện tích, phí điện nước, chip hòa hợp)
 /// đang gắn tạm và được ghi trong `tiendo.md`.
 class RoommateRoomDetailScreen extends ConsumerStatefulWidget {
   final RoommatePostModel post;
@@ -149,10 +151,14 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
     return title.isEmpty ? 'Tin ở ghép chưa có tiêu đề' : title;
   }
 
-  /// Địa chỉ hiện một lần, dưới tiêu đề. Gồm địa chỉ và khu vực của bài.
+  /// Địa chỉ hiện một lần, dưới tiêu đề. Không nối thêm quận nếu địa chỉ đã có.
   String get _address {
-    final cleaned = [_post.address, _post.district].map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    return cleaned.isEmpty ? 'Chưa có địa chỉ' : cleaned.join(', ');
+    final address = _post.address.trim();
+    final district = _post.district.trim();
+    if (address.isEmpty && district.isEmpty) return 'Chưa có địa chỉ';
+    if (address.isEmpty) return district;
+    if (district.isEmpty || address.toLowerCase().contains(district.toLowerCase())) return address;
+    return '$address, $district';
   }
 
   double get _priceEach {
@@ -399,7 +405,11 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
           const SizedBox(height: 16),
           const Text('Vị trí toạ lạc:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          _mapCard(),
+          _AddressMap(
+            address: _address,
+            latitude: _post.latitude,
+            longitude: _post.longitude,
+          ),
         ],
       ),
       bottomNavigationBar: _bottomBar(),
@@ -807,44 +817,6 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
     );
   }
 
-  /// Khung bản đồ tạm. Chưa có tọa độ trên tin.
-  Widget _mapCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 150,
-        width: double.infinity,
-        color: const Color(0xFFD7E4D4),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFE7F0E4), Color(0xFFC5D7C8), Color(0xFFB7C9D6)],
-                  ),
-                ),
-              ),
-            ),
-            const Center(child: Icon(Icons.location_on, color: Color(0xFFE11D48), size: 36)),
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                child: const Text('Cách ĐH Ngoại Thương CS2  •  15 phút xe máy', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Thanh dưới: yêu cầu ghép nối mở lời nhắn, nút còn lại mở chat.
   Widget _bottomBar() {
     return Container(
@@ -966,4 +938,201 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
     if (url.startsWith('http://') || url.startsWith('https://')) return NetworkImage(url);
     return null;
   }
+}
+
+/// Bản đồ cuối bài. Có tọa độ thì ghim ngay, không có thì dò theo địa chỉ.
+class _AddressMap extends StatefulWidget {
+  final String address;
+  final double? latitude;
+  final double? longitude;
+
+  const _AddressMap({required this.address, this.latitude, this.longitude});
+
+  @override
+  State<_AddressMap> createState() => _AddressMapState();
+}
+
+class _AddressMapState extends State<_AddressMap> {
+  LatLng? _point;
+  bool _loading = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final lat = widget.latitude;
+    final lng = widget.longitude;
+    if (lat != null && lng != null) {
+      _point = LatLng(lat, lng);
+      return;
+    }
+    final query = widget.address.trim();
+    if (query.isEmpty || query == 'Chưa có địa chỉ') return;
+    _point = _knownPlace(query);
+    _loading = _point == null;
+    _resolve(query);
+  }
+
+  Future<void> _resolve(String query) async {
+    final point = await _photonSearch(query);
+    if (!mounted) return;
+    final known = _point;
+    // Kết quả dò quá xa điểm đang ghim thì bỏ, kẻo ghim chạy ra ngoài khung.
+    final accept = point != null && _inVietnam(point) && (known == null || _isNear(known, point));
+    setState(() {
+      if (accept) _point = point;
+      _loading = false;
+      _failed = _point == null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final point = _point;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 260,
+        width: double.infinity,
+        child: ColoredBox(
+          color: const Color(0xFFE4E7EC),
+          child: Stack(
+            children: [
+              if (point != null)
+                Positioned.fill(
+                  child: FlutterMap(
+                  key: ValueKey('${point.latitude.toStringAsFixed(5)}:${point.longitude.toStringAsFixed(5)}'),
+                  options: MapOptions(
+                    initialCenter: point,
+                    initialZoom: 17,
+                    maxZoom: 20,
+                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}',
+                      subdomains: const ['mt0', 'mt1', 'mt2', 'mt3'],
+                      userAgentPackageName: 'com.homeshare.app.home_share',
+                      maxNativeZoom: 20,
+                      tileDisplay: const TileDisplay.instantaneous(),
+                    ),
+                  ],
+                  ),
+                ),
+              if (point != null)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 40),
+                    child: Icon(Icons.location_on, color: Color(0xFFE11D48), size: 40),
+                  ),
+                )
+              else
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFE7F0E4), Color(0xFFC5D7C8), Color(0xFFB7C9D6)],
+                      ),
+                    ),
+                  ),
+                ),
+              if (_loading) const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  child: Text(
+                    _failed ? '${widget.address}\nChưa định vị được trên bản đồ' : widget.address,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.3),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<LatLng?> _photonSearch(String query) async {
+  final client = HttpClient();
+  try {
+    final bias = _knownPlace(query);
+    final uri = Uri.https('photon.komoot.io', '/api/', {
+      'q': query,
+      'limit': '1',
+      'lat': '${bias?.latitude ?? 10.7769}',
+      'lon': '${bias?.longitude ?? 106.7009}',
+    });
+    final request = await client.getUrl(uri);
+    request.headers.set(HttpHeaders.userAgentHeader, 'HomeShare/1.0 (com.homeshare.app.home_share)');
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    final response = await request.close().timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) return null;
+    final body = await response.transform(utf8.decoder).join();
+    final decoded = jsonDecode(body);
+    if (decoded is! Map) return null;
+    final features = decoded['features'];
+    if (features is! List || features.isEmpty) return null;
+    final geometry = features.first is Map ? features.first['geometry'] : null;
+    if (geometry is! Map) return null;
+    final coordinates = geometry['coordinates'];
+    if (coordinates is! List || coordinates.length < 2) return null;
+    final lon = double.tryParse('${coordinates[0]}');
+    final lat = double.tryParse('${coordinates[1]}');
+    if (lat == null || lon == null) return null;
+    return LatLng(lat, lon);
+  } catch (_) {
+    return null;
+  } finally {
+    client.close(force: true);
+  }
+}
+
+/// Điểm dự phòng theo tên phường, quận trong địa chỉ, để bài nào cũng có bản đồ.
+LatLng? _knownPlace(String query) {
+  final text = query.toLowerCase();
+  const places = <(String, double, double)>[
+    ('phường linh trung', 10.8696, 106.7782),
+    ('linh trung', 10.8696, 106.7782),
+    ('phường 25', 10.8036, 106.7302),
+    ('bình thạnh', 10.8036, 106.7302),
+    ('binh thanh', 10.8036, 106.7302),
+    ('tân phong', 10.7312, 106.7204),
+    ('tan phong', 10.7312, 106.7204),
+    ('quận 7', 10.7340, 106.7218),
+    ('quan 7', 10.7340, 106.7218),
+    ('phường 16', 10.8380, 106.6648),
+    ('gò vấp', 10.8380, 106.6648),
+    ('go vap', 10.8380, 106.6648),
+    ('dịch vọng', 21.0360, 105.7895),
+    ('cầu giấy', 21.0278, 105.7900),
+    ('hải châu', 16.0715, 108.2238),
+    ('thủ đức', 10.8497, 106.7717),
+    ('thu duc', 10.8497, 106.7717),
+    ('hà nội', 21.0285, 105.8542),
+    ('ha noi', 21.0285, 105.8542),
+    ('đà nẵng', 16.0544, 108.2022),
+    ('da nang', 16.0544, 108.2022),
+    ('hồ chí minh', 10.7769, 106.7009),
+    ('ho chi minh', 10.7769, 106.7009),
+  ];
+  for (final place in places) {
+    if (text.contains(place.$1)) return LatLng(place.$2, place.$3);
+  }
+  return null;
+}
+
+bool _inVietnam(LatLng point) {
+  return point.latitude >= 8 && point.latitude <= 24 && point.longitude >= 102 && point.longitude <= 110;
+}
+
+bool _isNear(LatLng a, LatLng b) {
+  return (a.latitude - b.latitude).abs() < 0.08 && (a.longitude - b.longitude).abs() < 0.08;
 }
