@@ -82,6 +82,20 @@ class AuthService {
     }
   }
 
+  /// Gửi link đổi mật khẩu vào email. Người dùng đặt mật khẩu mới trên trang Firebase,
+  /// mật khẩu đó có hiệu lực ngay khi đăng nhập lại trên app.
+  Future<void> sendPasswordResetEmail(String email) async {
+    final trimmed = email.trim();
+    try {
+      await _auth.setLanguageCode('vi');
+      await _auth.sendPasswordResetEmail(email: trimmed);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Đã có lỗi xảy ra: $e';
+    }
+  }
+
   // Đăng xuất. Xóa fcmToken trước để máy này không còn nhận chuông của tài khoản vừa thoát.
   Future<void> signOut() async {
     final uid = _auth.currentUser?.uid;
@@ -109,6 +123,10 @@ class AuthService {
         return 'Mật khẩu quá yếu (tối thiểu 6 ký tự).';
       case 'user-disabled':
         return 'Tài khoản này đã bị khóa.';
+      case 'too-many-requests':
+        return 'Bạn gửi yêu cầu quá nhiều lần. Hãy thử lại sau ít phút.';
+      case 'network-request-failed':
+        return 'Không có mạng. Hãy kiểm tra kết nối rồi thử lại.';
       default:
         return e.message ?? 'Lỗi xác thực: ${e.code}';
     }

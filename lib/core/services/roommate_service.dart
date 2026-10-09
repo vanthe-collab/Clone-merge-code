@@ -103,6 +103,7 @@ class RoommateService {
 
   // Danh sách bài đăng tạo mới trong bộ nhớ (đảm bảo luôn hiển thị ngay lập tức)
   static final List<RoommatePostModel> _localCreatedPosts = [];
+  static bool _authorRepairStarted = false;
 
   // Stream bài đăng tìm ở ghép (an toàn bộ lọc, in-memory filter & sort)
   Stream<List<RoommatePostModel>> getRoommatePostsStream({
@@ -122,6 +123,7 @@ class RoommateService {
     final habits = filters?.habits ?? const [];
     final minMatchRate = filters?.minMatchRate ?? 0;
     final searchQuery = filters?.searchQuery.trim().toLowerCase() ?? '';
+    _scheduleAuthorIdRepair();
 
     return _firestore.collection('roommate_posts').snapshots().handleError((err) {
       debugPrint('Firestore stream error, fallback to local: $err');
@@ -260,6 +262,46 @@ class RoommateService {
     }
     return savedPost;
   }
+
+  /// Sửa authorId giả trên tin ở ghép. Chỉ gán khi tên người đăng trùng đúng một document users.
+  void _scheduleAuthorIdRepair() {
+    if (_authorRepairStarted) return;
+    _authorRepairStarted = true;
+    repairRoommateAuthorIds();
+  }
+
+  Future<void> repairRoommateAuthorIds() async {
+    try {
+      final usersSnap = await _firestore.collection('users').get();
+      final userIds = <String>{};
+      final nameToIds = <String, Set<String>>{};
+      for (final doc in usersSnap.docs) {
+        userIds.add(doc.id);
+        final data = doc.data();
+        for (final key in ['displayName', 'hoTen', 'hoten']) {
+          final name = _normName('${data[key] ?? ''}');
+          if (name.isEmpty) continue;
+          nameToIds.putIfAbsent(name, () => <String>{}).add(doc.id);
+        }
+      }
+
+      final postsSnap = await _firestore.collection('roommate_posts').get();
+      for (final doc in postsSnap.docs) {
+        final data = doc.data();
+        final authorId = '${data['authorId'] ?? data['nguoiDangId'] ?? ''}'.trim();
+        if (authorId.isNotEmpty && userIds.contains(authorId)) continue;
+        final name = _normName('${data['authorName'] ?? data['hoTen'] ?? data['tenNguoiDang'] ?? ''}');
+        final matches = nameToIds[name];
+        if (matches == null || matches.length != 1) continue;
+        final uid = matches.first;
+        await doc.reference.update({'authorId': uid, 'nguoiDangId': uid});
+      }
+    } catch (e) {
+      debugPrint('repair roommate authorId: $e');
+    }
+  }
+
+  String _normName(String raw) => raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   /// Vài bài cố định để thử tìm kiếm. Hai bài ở TP.HCM mỗi phía, một bài tỉnh khác để không ra hết.
   static List<RoommatePostModel> getDemoRoommatePosts() {

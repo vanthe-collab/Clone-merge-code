@@ -1481,10 +1481,15 @@ Sơ đồ `Database homeShare.drawio.xml`, gói Ở ghép / Nhà trọ / Đặt 
 * Phòng 1 — N Đơn đặt phòng (`Đơn.phongId`, collection `bookings`). Màn này không còn nút Đặt phòng nhanh.
 * Phòng 1 — N Kỳ ở, Kỳ ở 1 — N Cư dân. Người đang ở chưa có collection riêng.
 * Tin ở ghép 1 — N Yêu cầu trao đổi (`YeuCauTraoDoiOGhep.tinId`). Nút **Yêu cầu ghép nối** mới chỉ mở lời nhắn rồi vào chat, chưa tạo document yêu cầu.
-* Cuộc trò chuyện 1 — N Tin nhắn. Nút nhắn tin mở `ChatDetailScreen` với `authorId` của bài ở ghép.
+* Cuộc trò chuyện 1 — N Tin nhắn. Nút nhắn tin mở `ChatDetailScreen` với `authorId` của bài ở ghép. `authorId` phải là id document `users`, không phải mã giả.
 * Bài đăng 1 — N Báo cáo. Nút báo cáo nằm trong sheet **Xem hồ sơ**, mở `ReportHostScreen` và ghi `roomId` bằng id bài.
 
 **N-N**
 * Phòng N — N Tiện ích qua `TienIch_Phong` (khóa kép `phongId` + `tienIch_Id`). Khối tiện ích tòa nhà trên màn đang là danh sách tạm, chưa đọc bảng nối.
 * Người dùng N — N Sở thích qua `NguoiDung_SoThich`. Sáu tiêu chí thói quen trên màn là bản tạm của quan hệ này.
 * Người dùng N — N bài/tin qua `Yêu thích` (`nguoiDungId` + `loaiDoiTuong` + `doiTuongId`). Thiết kế màn này không có nút tim.
+
+#### Sửa khóa người đăng trên tin ở ghép
+Lỗi: document `roommate_posts/1f5R1ERVhbJpS49Hb4Co` (Phạm Anh Tuấn) lưu `authorId` = `user_tuan_tech`. Id này không có trong collection `users`, nên quan hệ 1 người — N tin bị đứt và nhắn tin không tới tài khoản thật.
+
+Cách sửa: bài tạo từ form đăng tin đã ghi `authorId` = uid Firebase (`create_roommate_post_screen.dart`). Bài cũ trên Firestore được sửa khi mở bảng tin: `RoommateService.repairRoommateAuthorIds` tìm `users` theo `displayName` / `hoTen` / `hoten`. Trùng đúng một tài khoản thì ghi đè `authorId` và `nguoiDangId` bằng id document đó. Không trùng, hoặc trùng nhiều người cùng tên, thì không gán bừa. Bài demo trong bộ nhớ (`demo_lan_anh` và các id tương tự) không ghi lên Firestore.
