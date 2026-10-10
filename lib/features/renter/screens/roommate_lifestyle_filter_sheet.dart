@@ -67,6 +67,7 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
 
   // 3. Ngân sách mỗi người
   late RangeValues _budgetRange;
+  late bool _budgetTouched;
 
   // 4. Lối sống & Thói quen
   final Set<String> _selectedHabits = {};
@@ -93,6 +94,7 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
     final minVal = (widget.initialFilters.budgetMin ?? 1000000).clamp(500000.0, 6000000.0);
     final maxVal = (widget.initialFilters.budgetMax ?? 3000000).clamp(minVal, 6000000.0);
     _budgetRange = RangeValues(minVal, maxVal);
+    _budgetTouched = widget.initialFilters.budgetMin != null || widget.initialFilters.budgetMax != null;
 
     if (widget.initialFilters.habits.isNotEmpty) {
       _selectedHabits.addAll(widget.initialFilters.habits);
@@ -124,8 +126,9 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
       targetGender: _selectedGender,
       occupation: _selectedOccupations.length == 1 ? _selectedOccupations.first : 'Tất cả',
       occupations: _selectedOccupations.toList(),
-      budgetMin: _budgetRange.start,
-      budgetMax: _budgetRange.end,
+      budgetMin: _budgetTouched ? _budgetRange.start : null,
+      budgetMax: _budgetTouched ? _budgetRange.end : null,
+      clearBudget: !_budgetTouched,
       habits: _selectedHabits.toList(),
       minMatchRate: _matchRate,
     );
@@ -175,6 +178,7 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
       _habitOptions = List<String>.from(_defaultHabits);
       _habitController.clear();
       _budgetRange = const RangeValues(1000000, 3000000);
+      _budgetTouched = false;
       _selectedHabits.clear();
       _matchRate = 0;
     });
@@ -666,7 +670,10 @@ class _RoommateLifestyleFilterSheetState extends State<RoommateLifestyleFilterSh
               max: 6000000,
               divisions: 55,
               onChanged: (values) {
-                setState(() => _budgetRange = values);
+                setState(() {
+                  _budgetTouched = true;
+                  _budgetRange = values;
+                });
               },
             ),
           ),

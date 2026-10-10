@@ -202,7 +202,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Đăng tin ở ghép',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
       ),
       body: SafeArea(
@@ -253,7 +253,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
               const Text(
                 'Tìm Ở Ghép',
                 style: TextStyle(
-                  fontSize: 19,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF0F172A),
                 ),
@@ -309,9 +309,9 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
     final isHasRoom = _currentFilters.hasRoom == true;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
       child: Container(
-        height: 40,
+        height: 46,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
@@ -336,15 +336,16 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                         : null,
                   ),
                   alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
-                    'Đang tìm người ghép (Có phòng)',
+                    'Đã có phòng',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 14,
                       fontWeight: isHasRoom ? FontWeight.bold : FontWeight.w500,
                       color: isHasRoom ? AppColors.primary : const Color(0xFF64748B),
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -366,15 +367,16 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                         : null,
                   ),
                   alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
-                    'Người cần tìm phòng ghép',
+                    'Cần tìm phòng',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 14,
                       fontWeight: !isHasRoom ? FontWeight.bold : FontWeight.w500,
                       color: !isHasRoom ? AppColors.primary : const Color(0xFF64748B),
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -408,7 +410,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   const Text(
                     'Chưa có bài đăng nào',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF334155),
                     ),
@@ -416,7 +418,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   const SizedBox(height: 4),
                   Text(
                     'Hãy là người đầu tiên đăng tin tìm bạn ở ghép!',
-                    style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 14.5, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -464,7 +466,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   Text(
                     'Độ tương thích lối sống',
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E3A8A),
                     ),
@@ -473,7 +475,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   Text(
                     'Hệ thống gợi ý bạn cùng phòng hợp gu 94%',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 13,
                       color: AppColors.primary,
                       fontWeight: FontWeight.w500,
                     ),
@@ -550,7 +552,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                     Text(
                       post.hasRoom ? 'Đã có phòng sẵn' : 'Chưa có phòng',
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: post.hasRoom ? const Color(0xFF0369A1) : const Color(0xFFC2410C),
                       ),
@@ -567,7 +569,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   Text(
                     _formatTimeAgo(post.createdAt),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF64748B),
                     ),
@@ -645,7 +647,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                           TextSpan(
                             text: post.authorName,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
                             ),
@@ -653,7 +655,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                           TextSpan(
                             text: ' • ${post.authorAge} tuổi',
                             style: const TextStyle(
-                              fontSize: 13,
+                              fontSize: 15,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF64748B),
                             ),
@@ -677,7 +679,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                           child: Text(
                             post.authorOccupation,
                             style: const TextStyle(
-                              fontSize: 12.5,
+                              fontSize: 14.5,
                               fontWeight: FontWeight.w600,
                               color: AppColors.primary,
                             ),
@@ -727,7 +729,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                 Text(
                   post.title,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF0F172A),
                     height: 1.35,
@@ -740,7 +742,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                       TextSpan(
                         text: priceText,
                         style: const TextStyle(
-                          fontSize: 17,
+                          fontSize: 19,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primary,
                         ),
@@ -748,7 +750,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                       TextSpan(
                         text: post.hasRoom ? ' /người/tháng' : ' /tháng',
                         style: const TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF64748B),
                         ),
@@ -769,7 +771,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                       child: Text(
                         post.address,
                         style: const TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF475569),
                           height: 1.25,
@@ -791,7 +793,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
             Text(
               post.hasRoom ? 'TIÊU CHÍ SINH HOẠT:' : 'LỐI SỐNG & THÓI QUEN:',
               style: const TextStyle(
-                fontSize: 11.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.3,
                 color: Color(0xFF64748B),
@@ -817,7 +819,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                       Text(
                         h,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF1E293B),
                         ),
@@ -843,7 +845,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                     icon: const Icon(Icons.chat_bubble_outline, size: 17),
                     label: const Text(
                       'Nhắn tin trao đổi',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -869,7 +871,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                     ),
                     child: Text(
                       post.hasRoom ? 'Xem hồ sơ' : 'Xem chi tiết',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
                 ),
@@ -937,7 +939,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
                   caption,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1026,12 +1028,12 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
               children: [
                 Text(
                   'Chưa tìm được bạn ghép ưng ý?',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF0F172A)),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5, color: Color(0xFF0F172A)),
                 ),
                 SizedBox(height: 3),
                 Text(
                   'Tạo bài tìm người ghép miễn phí trong 1 phút',
-                  style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  style: TextStyle(fontSize: 13.5, color: Color(0xFF64748B)),
                 ),
               ],
             ),
@@ -1050,7 +1052,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('Đăng ngay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            child: const Text('Đăng ngay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ],
       ),

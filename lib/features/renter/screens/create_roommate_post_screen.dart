@@ -54,15 +54,15 @@ class _CreateRoommatePostScreenState extends ConsumerState<CreateRoommatePostScr
   bool _isSubmitting = false;
 
   final List<String> _commonHabits = [
-    'Không hút thuốc',
     'Yên tĩnh sau 23h',
-    'Sạch sẽ ngăn nắp',
-    'Giờ giấc tự do 24/7',
+    'Sạch sẽ, ngăn nắp cao',
+    'Tuyệt đối không thuốc lá',
+    'Giờ giấc tự do',
     'Có xe máy riêng',
-    'Nấu ăn tại phòng',
-    'Thân thiện vui vẻ',
-    'Thú cưng (Chó/Mèo)',
-    'Dậy sớm (Trước 7h)',
+    'Thích thể thao/Gym',
+    'Không ồn ào/tụ tập',
+    'Chăm học/Làm việc',
+    'Nấu ăn thường xuyên',
   ];
 
   final List<String> _propertyTypes = [

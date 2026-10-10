@@ -44,6 +44,7 @@ class RoommateFilterParams {
     List<String>? occupations,
     double? budgetMin,
     double? budgetMax,
+    bool clearBudget = false,
     List<String>? habits,
     int? minMatchRate,
     String? searchQuery,
@@ -56,8 +57,8 @@ class RoommateFilterParams {
       hasRoom: clearHasRoom ? null : (hasRoom ?? this.hasRoom),
       occupation: occupation ?? this.occupation,
       occupations: occupations ?? this.occupations,
-      budgetMin: budgetMin ?? this.budgetMin,
-      budgetMax: budgetMax ?? this.budgetMax,
+      budgetMin: clearBudget ? null : (budgetMin ?? this.budgetMin),
+      budgetMax: clearBudget ? null : (budgetMax ?? this.budgetMax),
       habits: habits ?? this.habits,
       minMatchRate: minMatchRate ?? this.minMatchRate,
       searchQuery: searchQuery ?? this.searchQuery,
@@ -203,9 +204,12 @@ class RoommateService {
                 post.habits.any((h) => h.toLowerCase().contains('lgbt'));
             if (!isLgbt && post.targetGender != 'Tất cả') return false;
           } else {
-            if (post.targetGender != 'Tất cả' && post.targetGender != 'tatCa' && post.targetGender != effectiveTargetGender) {
-              return false;
-            }
+            final wanted = effectiveTargetGender.trim();
+            final target = post.targetGender.trim();
+            final author = post.authorGender.trim();
+            final seeksWanted = target == 'Tất cả' || target == 'tatCa' || target == wanted;
+            final authorIsWanted = author == wanted;
+            if (!seeksWanted && !authorIsWanted) return false;
           }
         }
 
@@ -228,11 +232,9 @@ class RoommateService {
           }
         }
 
-        // 7. Mọi thói quen đã chọn đều phải có trên bài
-        if (habits.isNotEmpty) {
-          final postHabits = post.habits.map((item) => item.toLowerCase()).toSet();
-          final allMatch = habits.every((item) => postHabits.contains(item.toLowerCase()));
-          if (!allMatch) return false;
+        // 7. Mỗi thói quen đã chọn phải có ý tương đương trên bài, không cần trùng từng chữ.
+        if (habits.isNotEmpty && !habits.every((item) => _habitHit(item, post.habits))) {
+          return false;
         }
 
         // 8. Tỷ lệ tương thích Match rate
@@ -302,6 +304,40 @@ class RoommateService {
   }
 
   String _normName(String raw) => raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  /// Khớp thói quen khi bài ghi cách viết khác bộ lọc, ví dụ "Sạch sẽ ngăn nắp" với "Sạch sẽ, ngăn nắp cao".
+  bool _habitHit(String selected, List<String> postHabits) {
+    final needle = _habitKey(selected);
+    if (needle.isEmpty) return true;
+    for (final raw in postHabits) {
+      final hay = _habitKey(raw);
+      if (hay.isEmpty) continue;
+      if (hay == needle || hay.contains(needle) || needle.contains(hay)) return true;
+      if (_sameHabitFamily(needle, hay)) return true;
+    }
+    return false;
+  }
+
+  String _habitKey(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(RegExp(r'[,./()]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _sameHabitFamily(String a, String b) {
+    const groups = <List<String>>[
+      ['thuốc', 'hút thuốc'],
+      ['sạch sẽ', 'ngăn nắp'],
+      ['yên tĩnh'],
+      ['giờ giấc tự do'],
+    ];
+    for (final group in groups) {
+      if (group.any(a.contains) && group.any(b.contains)) return true;
+    }
+    return false;
+  }
 
   /// Vài bài cố định để thử tìm kiếm. Hai bài ở TP.HCM mỗi phía, một bài tỉnh khác để không ra hết.
   static List<RoommatePostModel> getDemoRoommatePosts() {
