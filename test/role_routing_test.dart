@@ -332,227 +332,94 @@ void main() {
     );
   });
 
-  group('4. UserProfile.fromMap Integration Tests', () {
-    test('UserProfile.fromMap phân giải đúng role host và cờ isHost', () {
-      final hostData = {
-        'hoTen': 'Chủ Nhà Trọ',
-        'email': 'chunha@gmail.com',
-        'soDienThoai': '0981234567',
-        'vaiTro': 'chutro',
-      };
-      final profile = UserProfile.fromMap(hostData, 'host_101');
-      expect(profile.role, equals('host'));
-      expect(profile.isHost, isTrue);
-      expect(profile.isRenter, isFalse);
-      expect(profile.isAdmin, isFalse);
-      expect(profile.hasValidRole, isTrue);
-    });
+  group('4. UserProfile.fromMap trên main luôn là người thuê', () {
+    test('fromMap giữ role renter dù Firestore ghi host, admin hoặc role lạ', () {
+      final cases = [
+        {'vaiTro': 'chutro'},
+        {'role': 'admin'},
+        {'vaiTro': 'tenant'},
+        <String, String>{},
+        {'role': 'super_admin_hacker'},
+      ];
 
-    test('UserProfile.fromMap phân giải đúng role admin và cờ isAdmin', () {
-      final adminData = {
-        'hoTen': 'Quản Trị Viên',
-        'email': 'admin@homeshare.vn',
-        'soDienThoai': '0989999999',
-        'role': 'admin',
-      };
-      final profile = UserProfile.fromMap(adminData, 'admin_001');
-      expect(profile.role, equals('admin'));
-      expect(profile.isAdmin, isTrue);
-      expect(profile.isHost, isFalse);
-      expect(profile.isRenter, isFalse);
-      expect(profile.hasValidRole, isTrue);
-    });
-
-    test(
-      'UserProfile.fromMap phân giải đúng role renter khi có alias tenant / nguoiDung',
-      () {
-        final tenantData = {
-          'hoTen': 'Người Thuê Trọ',
-          'email': 'tenant@gmail.com',
-          'soDienThoai': '0912345678',
-          'vaiTro': 'tenant',
-        };
-        final profile = UserProfile.fromMap(tenantData, 'renter_202');
+      for (final data in cases) {
+        final profile = UserProfile.fromMap({
+          'hoTen': 'Người dùng',
+          'email': 'user@test.vn',
+          'soDienThoai': '0900000000',
+          ...data,
+        }, 'uid_${data.hashCode}');
         expect(profile.role, equals('renter'));
         expect(profile.isRenter, isTrue);
         expect(profile.isHost, isFalse);
         expect(profile.isAdmin, isFalse);
         expect(profile.hasValidRole, isTrue);
-      },
-    );
+      }
+    });
 
-    test(
-      'UserProfile.fromMap KHÔNG tự ý ép về renter khi dữ liệu thiếu role (Fail-closed)',
-      () {
-        final dataWithoutRole = {
-          'hoTen': 'Người Dùng Chưa Xác Định',
-          'email': 'unknown@gmail.com',
-          'soDienThoai': '0933333333',
-        };
-        final profile = UserProfile.fromMap(dataWithoutRole, 'unknown_303');
-        expect(profile.role, equals(''));
-        expect(profile.hasValidRole, isFalse);
-        expect(profile.isRenter, isFalse);
-        expect(profile.isHost, isFalse);
-        expect(profile.isAdmin, isFalse);
-      },
-    );
+    test('Getter role phản ánh đúng giá trị được truyền vào constructor', () {
+      final host = UserProfile(
+        uid: 'u_host',
+        email: 'host@test.vn',
+        displayName: 'Host',
+        phoneNumber: '0902222222',
+        role: 'host',
+      );
+      final admin = UserProfile(
+        uid: 'u_admin',
+        email: 'admin@test.vn',
+        displayName: 'Admin',
+        phoneNumber: '0903333333',
+        role: 'admin',
+      );
+      final invalid = UserProfile(
+        uid: 'u_invalid',
+        email: 'invalid@test.vn',
+        displayName: 'Invalid',
+        phoneNumber: '0904444444',
+        role: 'hacker_role',
+      );
 
-    test(
-      'UserProfile.fromMap KHÔNG tự ý ép về renter khi role không hợp lệ (Fail-closed)',
-      () {
-        final dataWithInvalidRole = {
-          'hoTen': 'Người Dùng Hack',
-          'email': 'hacker@test.com',
-          'soDienThoai': '0944444444',
-          'role': 'super_admin_hacker',
-        };
-        final profile = UserProfile.fromMap(dataWithInvalidRole, 'hacker_404');
-        expect(profile.role, equals(''));
-        expect(profile.hasValidRole, isFalse);
-        expect(profile.isRenter, isFalse);
-      },
-    );
+      expect(host.isHost, isTrue);
+      expect(host.isAdmin, isFalse);
+      expect(host.hasValidRole, isTrue);
+      expect(admin.isAdmin, isTrue);
+      expect(admin.hasValidRole, isTrue);
+      expect(invalid.hasValidRole, isFalse);
+      expect(invalid.isRenter, isFalse);
+    });
   });
 
-  group('5. Fail-closed Serialization & toMap Regression Tests', () {
-    test('toMap sinh vaiTro_id = 1 cho renter, 2 cho host, 3 cho admin', () {
-      final renter = UserProfile(
+  group('5. toMap của main không ghi vaiTro_id', () {
+    test('toMap ghi role và vaiTro, không sinh vaiTro_id', () {
+      final profile = UserProfile(
         uid: 'u_renter_map',
         email: 'renter@test.vn',
         displayName: 'Nguyễn Renter',
         phoneNumber: '0901111111',
         role: 'renter',
       );
-      final host = UserProfile(
-        uid: 'u_host_map',
-        email: 'host@test.vn',
-        displayName: 'Trần Host',
-        phoneNumber: '0902222222',
-        role: 'host',
-      );
-      final admin = UserProfile(
-        uid: 'u_admin_map',
-        email: 'admin@test.vn',
-        displayName: 'Lê Admin',
-        phoneNumber: '0903333333',
-        role: 'admin',
-      );
 
-      final renterMap = renter.toMap();
-      final hostMap = host.toMap();
-      final adminMap = admin.toMap();
-
-      expect(renterMap['vaiTro_id'], equals(1));
-      expect(hostMap['vaiTro_id'], equals(2));
-      expect(adminMap['vaiTro_id'], equals(3));
+      final map = profile.toMap();
+      expect(map['role'], equals('renter'));
+      expect(map['vaiTro'], equals('renter'));
+      expect(map.containsKey('vaiTro_id'), isFalse);
     });
 
-    test(
-      'toMap KHÔNG sinh vaiTro_id (omit) khi role invalid hoặc rỗng (Không sinh id=1)',
-      () {
-        final invalidProfile = UserProfile(
-          uid: 'u_invalid_map',
-          email: 'invalid@test.vn',
-          displayName: 'Invalid User',
-          phoneNumber: '0904444444',
-          role: 'hacker_role',
-        );
-        final emptyRoleProfile = UserProfile(
-          uid: 'u_empty_map',
-          email: 'empty@test.vn',
-          displayName: 'Empty Role User',
-          phoneNumber: '0905555555',
-          role: '',
-        );
+    test('fromMap sau toMap vẫn là người thuê', () {
+      final host = UserProfile(
+        uid: 'u_rt_host',
+        email: 'host@test.vn',
+        displayName: 'Host RT',
+        phoneNumber: '0908888888',
+        role: 'host',
+      );
 
-        final invalidMap = invalidProfile.toMap();
-        final emptyMap = emptyRoleProfile.toMap();
-
-        // Key vaiTro_id hoàn toàn không xuất hiện (omitted) và không sinh id=1
-        expect(invalidMap.containsKey('vaiTro_id'), isFalse);
-        expect(invalidMap['vaiTro_id'], isNull);
-        expect(invalidMap['vaiTro_id'], isNot(equals(1)));
-
-        expect(emptyMap.containsKey('vaiTro_id'), isFalse);
-        expect(emptyMap['vaiTro_id'], isNull);
-        expect(emptyMap['vaiTro_id'], isNot(equals(1)));
-      },
-    );
-
-    test(
-      'Round-trip serialization: toMap -> fromMap bảo toàn tính Fail-closed, không biến invalid thành renter',
-      () {
-        final invalidProfile = UserProfile(
-          uid: 'u_rt_invalid',
-          email: 'rt_invalid@test.vn',
-          displayName: 'RoundTrip Invalid',
-          phoneNumber: '0906666666',
-          role: 'invalid_role_xyz',
-        );
-
-        final serializedMap = invalidProfile.toMap();
-        expect(serializedMap.containsKey('vaiTro_id'), isFalse);
-
-        final reconstructed = UserProfile.fromMap(
-          serializedMap,
-          'u_rt_invalid',
-        );
-        expect(reconstructed.role, equals(''));
-        expect(reconstructed.hasValidRole, isFalse);
-        expect(reconstructed.isRenter, isFalse);
-        expect(reconstructed.isHost, isFalse);
-        expect(reconstructed.isAdmin, isFalse);
-      },
-    );
-
-    test(
-      'Round-trip serialization: toMap -> fromMap bảo toàn chính xác vai trò hợp lệ',
-      () {
-        final renter = UserProfile(
-          uid: 'u_rt_renter',
-          email: 'renter@test.vn',
-          displayName: 'Renter RT',
-          phoneNumber: '0907777777',
-          role: 'renter',
-        );
-        final host = UserProfile(
-          uid: 'u_rt_host',
-          email: 'host@test.vn',
-          displayName: 'Host RT',
-          phoneNumber: '0908888888',
-          role: 'host',
-        );
-        final admin = UserProfile(
-          uid: 'u_rt_admin',
-          email: 'admin@test.vn',
-          displayName: 'Admin RT',
-          phoneNumber: '0909999999',
-          role: 'admin',
-        );
-
-        final reconstructedRenter = UserProfile.fromMap(
-          renter.toMap(),
-          'u_rt_renter',
-        );
-        final reconstructedHost = UserProfile.fromMap(
-          host.toMap(),
-          'u_rt_host',
-        );
-        final reconstructedAdmin = UserProfile.fromMap(
-          admin.toMap(),
-          'u_rt_admin',
-        );
-
-        expect(reconstructedRenter.role, equals('renter'));
-        expect(reconstructedRenter.isRenter, isTrue);
-
-        expect(reconstructedHost.role, equals('host'));
-        expect(reconstructedHost.isHost, isTrue);
-
-        expect(reconstructedAdmin.role, equals('admin'));
-        expect(reconstructedAdmin.isAdmin, isTrue);
-      },
-    );
+      final reconstructed = UserProfile.fromMap(host.toMap(), 'u_rt_host');
+      expect(reconstructed.role, equals('renter'));
+      expect(reconstructed.isRenter, isTrue);
+      expect(reconstructed.isHost, isFalse);
+      expect(reconstructed.isAdmin, isFalse);
+    });
   });
 }

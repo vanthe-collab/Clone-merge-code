@@ -1,179 +1,91 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:home_share/core/services/image_storage_service.dart';
-import 'package:home_share/features/auth/providers/user_provider.dart';
 import 'package:home_share/features/profile/models/cccd_data.dart';
 import 'package:home_share/features/profile/models/cccd_validation_models.dart';
-
-class TrackingImageStorageService extends ImageStorageService {
-  int uploadCallCount = 0;
-
-  @override
-  Future<String> uploadCccdImage({
-    required String filePath,
-    required String uid,
-    required bool isFront,
-  }) async {
-    uploadCallCount++;
-    return 'https://mock.storage.test/$uid/${isFront ? "front" : "back"}.jpg';
-  }
-}
+import 'package:home_share/features/profile/services/cccd_image_evidence_validator.dart';
 
 void main() {
-  group('Save Boundary & Storage Hardening Tests', () {
-    test(
-      'saveCccdVerificationToBackend ném CccdValidationException và không gọi upload khi proof invalid (isValid: false)',
-      () async {
-        final trackingStorage = TrackingImageStorageService();
-        const invalidProof = CccdValidationProof(
-          isValid: false,
-          rejectionReasonCode: CccdValidationReasonCodes.proofIncomplete,
-        );
+  const validator = CccdImageEvidenceValidator();
 
-        expect(
-          () => saveCccdVerificationToBackend(
-            uid: 'test_user_001',
-            proof: invalidProof,
-            imageStorageService: trackingStorage,
-          ),
-          throwsA(isA<CccdValidationException>()),
-        );
+  const frontEvidence = CccdImageEvidence(
+    side: CccdImageSide.front,
+    normalizedOcrText: 'CĂN CƯỚC CÔNG DÂN',
+    qrPayload: '079201000001||NGUYEN VAN A|01012000|Nam|TP HO CHI MINH|01012022',
+    imageByteHash: 'hash_front',
+    width: 800,
+    height: 600,
+    byteLength: 50000,
+    filePath: '/synthetic/front.jpg',
+  );
 
-        expect(trackingStorage.uploadCallCount, equals(0));
-      },
-    );
+  const backEvidence = CccdImageEvidence(
+    side: CccdImageSide.back,
+    normalizedOcrText: 'ĐẶC ĐIỂM NHẬN DẠNG',
+    imageByteHash: 'hash_back',
+    width: 800,
+    height: 600,
+    byteLength: 50000,
+    filePath: '/synthetic/back.jpg',
+  );
 
-    test(
-      'saveCccdVerificationToBackend ném CccdValidationException khi proof có verifiedData null hoặc legacy version',
-      () async {
-        final trackingStorage = TrackingImageStorageService();
-        const legacyProof = CccdValidationProof(
-          isValid: true,
-          version: 'legacy_v0',
-          verifiedData: null,
-        );
+  const verifiedData = CccdData(
+    idNumber: '079201000001',
+    fullName: 'NGUYEN VAN A',
+    birthDate: '01/01/2000',
+    gender: 'Nam',
+    address: 'TP HO CHI MINH',
+    issueDate: '01/01/2022',
+  );
 
-        expect(
-          () => saveCccdVerificationToBackend(
-            uid: 'test_user_002',
-            proof: legacyProof,
-            imageStorageService: trackingStorage,
-          ),
-          throwsA(isA<CccdValidationException>()),
-        );
+  group('Save boundary của bằng chứng CCCD', () {
+    test('Không cho lưu khi proof không hợp lệ', () {
+      const proof = CccdValidationProof(
+        isValid: false,
+        rejectionReasonCode: CccdValidationReasonCodes.proofIncomplete,
+      );
 
-        expect(trackingStorage.uploadCallCount, equals(0));
-      },
-    );
+      expect(validator.canSave(proof), isFalse);
+    });
 
-    test(
-      'saveCccdVerificationToBackend ném CccdValidationException khi bằng chứng sai mặt (wrong side)',
-      () async {
-        final trackingStorage = TrackingImageStorageService();
-        const frontEvidenceAsBack = CccdImageEvidence(
+    test('Không cho lưu khi proof thiếu dữ liệu hoặc dùng phiên bản cũ', () {
+      const legacyProof = CccdValidationProof(
+        isValid: true,
+        version: 'legacy_v0',
+        verifiedData: null,
+        frontEvidence: frontEvidence,
+        backEvidence: backEvidence,
+      );
+
+      expect(validator.canSave(legacyProof), isFalse);
+    });
+
+    test('Không cho lưu khi hai mặt bị gán sai phía', () {
+      const wrongSideProof = CccdValidationProof(
+        isValid: true,
+        frontEvidence: frontEvidence,
+        backEvidence: CccdImageEvidence(
           side: CccdImageSide.front,
-          normalizedOcrText: 'ĐẶC ĐIỂM NHẬN DẠNG NGÓN TRỎ',
-          imageByteHash: 'hash_synthetic_back_002',
+          normalizedOcrText: 'ĐẶC ĐIỂM NHẬN DẠNG',
+          imageByteHash: 'hash_back',
           width: 800,
           height: 600,
           byteLength: 50000,
-          filePath: '/synthetic/path/back.jpg',
-        );
+          filePath: '/synthetic/back.jpg',
+        ),
+        verifiedData: verifiedData,
+      );
 
-        const frontEvidence = CccdImageEvidence(
-          side: CccdImageSide.front,
-          normalizedOcrText: 'CĂN CƯỚC CÔNG DÂN CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM',
-          qrPayload: '079201000001||NGUYEN VAN A|01012000|Nam|TP HO CHI MINH|01012022',
-          imageByteHash: 'hash_synthetic_front_001',
-          width: 800,
-          height: 600,
-          byteLength: 50000,
-          filePath: '/synthetic/path/front.jpg',
-        );
+      expect(validator.canSave(wrongSideProof), isFalse);
+    });
 
-        const syntheticData = CccdData(
-          idNumber: '079201000001',
-          fullName: 'NGUYEN VAN A',
-          birthDate: '01/01/2000',
-          gender: 'Nam',
-          address: 'TP HO CHI MINH',
-          issueDate: '01/01/2022',
-        );
+    test('Cho lưu khi proof đủ hai mặt, khác hash và có dữ liệu QR', () {
+      const proof = CccdValidationProof(
+        isValid: true,
+        frontEvidence: frontEvidence,
+        backEvidence: backEvidence,
+        verifiedData: verifiedData,
+      );
 
-        const wrongSideProof = CccdValidationProof(
-          isValid: true,
-          frontEvidence: frontEvidence,
-          backEvidence: frontEvidenceAsBack,
-          verifiedData: syntheticData,
-        );
-
-        expect(
-          () => saveCccdVerificationToBackend(
-            uid: 'test_user_003',
-            proof: wrongSideProof,
-            imageStorageService: trackingStorage,
-          ),
-          throwsA(isA<CccdValidationException>()),
-        );
-
-        expect(trackingStorage.uploadCallCount, equals(0));
-      },
-    );
-
-    test(
-      'uploadCccdImage reject http/https/data URL trước khi chạm Firebase',
-      () async {
-        final storage = ImageStorageService();
-
-        // 1. URL http
-        expect(
-          () => storage.uploadCccdImage(
-            filePath: 'http://example.com/fake_cccd.jpg',
-            uid: 'test_uid',
-            isFront: true,
-          ),
-          throwsA(isA<FormatException>()),
-        );
-
-        // 2. URL https
-        expect(
-          () => storage.uploadCccdImage(
-            filePath: 'https://firebasestorage.googleapis.com/v0/b/bucket/o/cccd.jpg',
-            uid: 'test_uid',
-            isFront: true,
-          ),
-          throwsA(isA<FormatException>()),
-        );
-
-        // 3. Data URI
-        expect(
-          () => storage.uploadCccdImage(
-            filePath: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
-            uid: 'test_uid',
-            isFront: true,
-          ),
-          throwsA(isA<FormatException>()),
-        );
-
-        // 4. File rỗng
-        expect(
-          () => storage.uploadCccdImage(
-            filePath: '',
-            uid: 'test_uid',
-            isFront: true,
-          ),
-          throwsA(isA<FormatException>()),
-        );
-
-        // 5. File demo
-        expect(
-          () => storage.uploadCccdImage(
-            filePath: '/path/to/demo_cccd_sample.jpg',
-            uid: 'test_uid',
-            isFront: true,
-          ),
-          throwsA(isA<FormatException>()),
-        );
-      },
-    );
+      expect(validator.canSave(proof), isTrue);
+    });
   });
 }

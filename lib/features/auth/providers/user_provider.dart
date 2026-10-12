@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/role_resolver.dart';
 import 'auth_provider.dart';
 
 /// Model thông tin người dùng HomeShare chuẩn hóa theo Database homeShare (DrawIO pkg_0: Tài khoản)
@@ -51,6 +52,8 @@ class UserProfile {
   String get vaiTro => role;
   bool get isRenter => role == 'renter';
   bool get isHost => role == 'host';
+  bool get isAdmin => role == 'admin';
+  bool get hasValidRole => RoleResolver.isValidRole(role);
   DateTime? get ngaySinh => birthDate;
   DateTime? get ngayTao => createdAt;
   bool get daXacThucCccd => isCccdVerified;
