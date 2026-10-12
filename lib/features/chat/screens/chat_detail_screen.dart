@@ -52,6 +52,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   bool _isRecordingAudio = false;
   final Set<String> _deletedForMeIds = {};
   final Set<String> _revokedIds = {};
+  ChatMessageModel? _replyingToMessage;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -77,8 +79,39 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _messageController.dispose();
+    _focusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _setReplyMessage(ChatMessageModel msg) {
+    setState(() {
+      _replyingToMessage = msg;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyingToMessage = null;
+    });
+  }
+
+  Map<String, dynamic> _replyPayload() {
+    final replying = _replyingToMessage;
+    if (replying == null) return {};
+    return {
+      'messageId': replying.id,
+      'senderId': replying.senderId,
+      'senderName': replying.senderId == widget.currentUserId ? widget.currentUserName : widget.receiverName,
+      'text': replying.messageType == 'image' ? '📷 [Hình ảnh]' : replying.text,
+      'messageType': replying.messageType,
+    };
+  }
+
+  void _clearReply() {
+    if (_replyingToMessage == null) return;
+    setState(() => _replyingToMessage = null);
   }
 
   void _scrollToBottom() {
@@ -132,6 +165,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       text: text,
       timestamp: DateTime.now(),
       status: 'sent',
+      extraData: _replyingToMessage == null ? const {} : {'replyTo': _replyPayload()},
     );
 
     try {
@@ -151,6 +185,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         receiverPhone: widget.receiverPhone,
         roomMetadata: roomMeta,
       );
+      _clearReply();
       _scrollToBottom();
     } catch (e) {
       if (overrideText == null) {
@@ -171,6 +206,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     String attachmentUrl = '',
     Map<String, dynamic> extraData = const {},
   }) async {
+    final combinedExtraData = Map<String, dynamic>.from(extraData);
+    if (_replyingToMessage != null) {
+      combinedExtraData['replyTo'] = _replyPayload();
+    }
+
     final message = ChatMessageModel(
       id: '',
       senderId: widget.currentUserId,
@@ -179,7 +219,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       text: text,
       messageType: messageType,
       attachmentUrl: attachmentUrl,
-      extraData: extraData,
+      extraData: combinedExtraData,
       timestamp: DateTime.now(),
       status: 'sent',
     );
@@ -191,6 +231,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         receiverAvatar: widget.receiverAvatar,
         receiverPhone: widget.receiverPhone,
       );
+      _clearReply();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -891,6 +932,21 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           children: [
             if (!isRevoked)
               ListTile(
+                leading: const Icon(Icons.reply_rounded, color: AppColors.primary),
+                title: const Text('Trả lời tin nhắn', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  msg.messageType == 'image' ? '📷 [Hình ảnh]' : (msg.text.isNotEmpty ? msg.text : 'Tin nhắn'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setReplyMessage(msg);
+                },
+              ),
+            if (!isRevoked)
+              ListTile(
                 leading: const Icon(Icons.copy_outlined, color: AppColors.primary),
                 title: const Text('Sao chép nội dung tin nhắn'),
                 onTap: () {
@@ -1465,7 +1521,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_replyingToMessage != null) _buildReplyBanner(),
+            Row(
           children: [
             // Nút Thêm đính kèm (+) (Tc_CHAT_29)
             IconButton(
@@ -1488,6 +1548,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                 textField: true,
                 child: TextField(
                   controller: _messageController,
+                  focusNode: _focusNode,
                   maxLines: 4,
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
@@ -1539,13 +1600,144 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             ),
           ],
         ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyBanner() {
+    final replying = _replyingToMessage;
+    if (replying == null) return const SizedBox.shrink();
+
+    final isMe = replying.senderId == widget.currentUserId;
+    final senderName = isMe ? 'chính bạn' : widget.receiverName;
+    final previewText = replying.messageType == 'image' ? '📷 [Hình ảnh]' : replying.text;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(4, 6, 4, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(
+          left: BorderSide(color: AppColors.primary, width: 3.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.reply_rounded, color: AppColors.primary, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Đang trả lời $senderName',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  previewText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18, color: Color(0xFF94A3B8)),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Hủy trả lời',
+            onPressed: _cancelReply,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyQuote(Map<String, dynamic> reply, bool isMe) {
+    final senderName = reply['senderName']?.toString() ?? 'Tin nhắn';
+    final text = reply['text']?.toString() ?? '';
+    final isImage = reply['messageType'] == 'image';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isMe ? Colors.white.withValues(alpha: 0.18) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: isMe ? Colors.white : AppColors.primary,
+            width: 3.5,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.reply_rounded,
+                size: 13,
+                color: isMe ? Colors.white : AppColors.primary,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  senderName,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isMe ? Colors.white : AppColors.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            isImage ? '📷 [Hình ảnh]' : text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: isMe ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF475569),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // Builder cho từng loại bong bóng tin nhắn (Văn bản, Lịch hẹn, Lời mời ở ghép, Vị trí, Ảnh, Audio)
   Widget _buildMessageItem(ChatMessageModel msg, bool isMe, [double? maxBubbleWidth]) {
-    return GestureDetector(
+    final isRevoked = msg.messageType == 'revoked' || msg.status == 'revoked' || _revokedIds.contains(msg.id);
+    return Dismissible(
+      key: ValueKey('msg_swipe_${msg.id.isNotEmpty ? msg.id : msg.timestamp.millisecondsSinceEpoch}'),
+      direction: isRevoked ? DismissDirection.none : DismissDirection.startToEnd,
+      confirmDismiss: (direction) async {
+        _setReplyMessage(msg);
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 16),
+        child: const Icon(Icons.reply_rounded, color: AppColors.primary, size: 24),
+      ),
+      child: GestureDetector(
       onLongPress: () => _showMessageContextMenu(msg, isMe),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -1599,6 +1791,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -1950,7 +2143,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         );
       }
 
-      return ClipRRect(
+      final imageBox = ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: () {
@@ -1998,6 +2191,34 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           ),
         ),
       );
+
+      if (msg.isReply) {
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isMe ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildReplyQuote(msg.replyTo!, isMe),
+              const SizedBox(height: 6),
+              imageBox,
+            ],
+          ),
+        );
+      }
+
+      return imageBox;
     }
 
     // 6. Bong bóng tin nhắn văn bản thông thường (Tc_CHAT_25 & SRS 2.10 link detect)
@@ -2028,6 +2249,10 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       child: Column(
         crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          if (msg.isReply) ...[
+            _buildReplyQuote(msg.replyTo!, isMe),
+            const SizedBox(height: 6),
+          ],
           if (isUnread) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 5),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -308,6 +309,84 @@ class _CccdScannerScreenState extends ConsumerState<CccdScannerScreen> with Sing
       final cccd = CccdData.fromQrString(trimmed);
       _showVerificationModal(cccd, isRealScan: true, rawQrText: trimmed);
       break;
+    }
+  }
+
+  Future<void> _scanFromGalleryImage() async {
+    if (_isProcessing) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 95);
+      if (picked == null) return;
+
+      setState(() => _isProcessing = true);
+      HapticFeedback.mediumImpact();
+
+      final capture = await _scannerController.analyzeImage(picked.path);
+      if (capture != null && capture.barcodes.isNotEmpty) {
+        var foundValid = false;
+        for (final barcode in capture.barcodes) {
+          var rawValue = barcode.rawValue ?? '';
+          // ignore: deprecated_member_use
+          final List<int>? rawBytes = barcode.rawBytes;
+          if (rawBytes != null && rawBytes.isNotEmpty) {
+            try {
+              final decoded = utf8.decode(rawBytes, allowMalformed: true);
+              if (decoded.trim().isNotEmpty) rawValue = decoded;
+            } catch (_) {}
+          } else if (rawValue.isNotEmpty) {
+            try {
+              final bytes = latin1.encode(rawValue);
+              final fixedUtf8 = utf8.decode(bytes);
+              if (fixedUtf8.contains('|')) rawValue = fixedUtf8;
+            } catch (_) {}
+          }
+
+          final trimmed = rawValue.trim().replaceAll('\uFEFF', '');
+          if (trimmed.isEmpty || (!trimmed.contains('|') && trimmed.replaceAll(RegExp(r'\D'), '').length < 12)) {
+            continue;
+          }
+
+          foundValid = true;
+          HapticFeedback.heavyImpact();
+          SystemSound.play(SystemSoundType.click);
+          final cccd = CccdData.fromQrString(trimmed);
+          _showVerificationModal(cccd, isRealScan: true, rawQrText: trimmed);
+          break;
+        }
+
+        if (!foundValid) {
+          setState(() => _isProcessing = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Mã QR CCCD không hợp lệ hoặc thiếu dữ liệu.'),
+                backgroundColor: Colors.amber,
+              ),
+            );
+          }
+        }
+      } else {
+        setState(() => _isProcessing = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không quét được mã QR từ ảnh đã chọn. Vui lòng chọn ảnh rõ nét hơn hoặc đưa camera lại gần thẻ.'),
+              backgroundColor: Colors.amber,
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      setState(() => _isProcessing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lỗi khi phân tích ảnh. Vui lòng thử lại.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -910,12 +989,18 @@ class _CccdScannerScreenState extends ConsumerState<CccdScannerScreen> with Sing
                           onPressed: () => _scannerController.switchCamera(),
                         ),
 
+                        IconButton(
+                          icon: const Icon(Icons.photo_library_outlined, color: Colors.white, size: 24),
+                          tooltip: 'Quét từ ảnh thư viện',
+                          onPressed: _scanFromGalleryImage,
+                        ),
+
                         // Nút Nhập / Dán Chuỗi QR Thật
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white38),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                           ),
                           icon: const Icon(Icons.paste_rounded, size: 18, color: Colors.amber),
@@ -928,7 +1013,7 @@ class _CccdScannerScreenState extends ConsumerState<CccdScannerScreen> with Sing
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white24,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                           ),
                           icon: const Icon(Icons.qr_code_scanner, size: 18),
