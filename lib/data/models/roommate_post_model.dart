@@ -29,8 +29,13 @@ class RoommatePostModel {
   final int matchRate; // doTuongThich (AI Match Rate 0-100%)
   final bool hasRoom; // true = daCoPhong (timNguoiOGhep), false = dangTimPhong
   final String status; // trangThai: dangMo | daDong
-  final String contactPhone; // soDienThoai / sdtLienHe
-  final DateTime createdAt; // ngayTao
+  final String contactPhone; // soDienThoai / sdtLienHe — chỉ giữ trên bộ nhớ, đọc từ users
+  final String donId; // khóa đơn đặt phòng, để trống nếu người đăng chưa có phòng
+  final String diaDiemId; // khóa dia_diem
+  final int soNguoiHienTai;
+  final int soNguoiToiDa;
+  final DateTime? ngayHetHan;
+  final DateTime createdAt; // ngayDang
   final DateTime updatedAt; // ngayCapNhat
 
   // Vietnamese DrawIO Alias Getters
@@ -82,6 +87,11 @@ class RoommatePostModel {
     required this.hasRoom,
     this.status = 'dangMo',
     required this.contactPhone,
+    this.donId = '',
+    this.diaDiemId = '',
+    this.soNguoiHienTai = 1,
+    this.soNguoiToiDa = 2,
+    this.ngayHetHan,
     required this.createdAt,
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? createdAt;
@@ -114,6 +124,11 @@ class RoommatePostModel {
     bool? hasRoom,
     String? status,
     String? contactPhone,
+    String? donId,
+    String? diaDiemId,
+    int? soNguoiHienTai,
+    int? soNguoiToiDa,
+    DateTime? ngayHetHan,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -145,6 +160,11 @@ class RoommatePostModel {
       hasRoom: hasRoom ?? this.hasRoom,
       status: status ?? this.status,
       contactPhone: contactPhone ?? this.contactPhone,
+      donId: donId ?? this.donId,
+      diaDiemId: diaDiemId ?? this.diaDiemId,
+      soNguoiHienTai: soNguoiHienTai ?? this.soNguoiHienTai,
+      soNguoiToiDa: soNguoiToiDa ?? this.soNguoiToiDa,
+      ngayHetHan: ngayHetHan ?? this.ngayHetHan,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -155,8 +175,17 @@ class RoommatePostModel {
   }
 
   factory RoommatePostModel.fromMap(Map<String, dynamic> data, String id) {
-    final loaiTinVal = data['postType'] ?? data['loaiTin'] ?? (data['hasRoom'] == true ? 'timNguoiOGhep' : 'dangTimPhong');
-    final hasRoomVal = data['hasRoom'] ?? (loaiTinVal == 'timNguoiOGhep' || loaiTinVal == 'daCoPhong');
+    final donId = '${data['bookingId'] ?? data['donId'] ?? ''}';
+    final loaiTinVal = data['postType'] ?? data['loaiTin'] ?? (data['hasRoom'] == true || donId.isNotEmpty ? 'timNguoiOGhep' : 'dangTimPhong');
+    final hasRoomVal = data['hasRoom'] == true || donId.isNotEmpty || loaiTinVal == 'timNguoiOGhep' || loaiTinVal == 'daCoPhong';
+    final rawStatus = '${data['status'] ?? data['trangThai_id'] ?? data['trangThai'] ?? 'open'}';
+    final status = rawStatus == 'open' || rawStatus == 'mo' || rawStatus == 'dangMo'
+        ? 'dangMo'
+        : rawStatus == 'closed' || rawStatus == 'dong' || rawStatus == 'daDong'
+            ? 'daDong'
+            : rawStatus;
+    final storedPrice = ((data['pricePerPerson'] ?? data['giaMoiNguoi']) as num?)?.toDouble() ?? 0.0;
+    final budgetMax = ((data['budgetMax'] ?? data['nganSachDen']) as num?)?.toDouble() ?? 2500000;
     
     // Parse habits / thoiQuen
     final rawHabits = (data['habits'] ?? data['thoiQuen'] ?? data['soThich']) as List<dynamic>?;
@@ -184,22 +213,22 @@ class RoommatePostModel {
     return RoommatePostModel(
       id: id,
       authorId: data['authorId'] ?? data['nguoiDangId'] ?? '',
-      authorName: data['authorName'] ?? data['hoTen'] ?? data['tenNguoiDang'] ?? 'Thành viên HomeShare',
+      authorName: data['authorName'] ?? data['hoTen'] ?? data['tenNguoiDang'] ?? '',
       authorAge: (data['authorAge'] ?? data['tuoi']) is num ? (data['authorAge'] ?? data['tuoi']).toInt() : 20,
-      authorGender: data['authorGender'] ?? data['gioiTinh'] ?? 'Nam',
-      authorOccupation: data['authorOccupation'] ?? data['ngheNghiep'] ?? 'Sinh viên',
+      authorGender: data['authorGender'] ?? data['gioiTinh'] ?? '',
+      authorOccupation: data['authorOccupation'] ?? data['ngheNghiep'] ?? '',
       authorAvatar: data['authorAvatar'] ?? data['anhDaiDien'] ?? '',
       title: data['title'] ?? data['tieuDe'] ?? '',
       description: data['description'] ?? data['noiDung'] ?? data['moTa'] ?? '',
       postType: loaiTinVal.toString(),
       propertyType: data['propertyType'] ?? data['loaiNhaO'] ?? data['loaiHinh'] ?? (hasRoomVal ? 'Căn hộ chung cư' : 'Phòng trọ sinh viên'),
-      pricePerPerson: ((data['pricePerPerson'] ?? data['giaMoiNguoi']) as num?)?.toDouble() ?? 0.0,
+      pricePerPerson: storedPrice > 0 ? storedPrice : budgetMax,
       budgetMin: ((data['budgetMin'] ?? data['nganSachTu']) as num?)?.toDouble() ?? 1000000,
-      budgetMax: ((data['budgetMax'] ?? data['nganSachDen']) as num?)?.toDouble() ?? 2500000,
+      budgetMax: budgetMax,
       address: data['address'] ?? data['diaChi'] ?? '',
       latitude: data['latitude'] is num ? (data['latitude'] as num).toDouble() : double.tryParse('${data['latitude'] ?? ''}'),
       longitude: data['longitude'] is num ? (data['longitude'] as num).toDouble() : double.tryParse('${data['longitude'] ?? ''}'),
-      district: data['district'] ?? data['quanHuyen'] ?? data['khuVuc'] ?? 'TP. Thủ Đức',
+      district: data['district'] ?? data['quanHuyen'] ?? data['khuVuc'] ?? '',
       targetGender: data['targetGender'] ?? data['gioiTinhMongMuon'] ?? 'Tất cả',
       habits: parsedHabits,
       images: parsedImages,
@@ -207,13 +236,22 @@ class RoommatePostModel {
       isVerified: data['isVerified'] ?? data['daXacThuc'] ?? true,
       matchRate: (data['matchRate'] ?? data['doTuongThich'] ?? 94) is num ? (data['matchRate'] ?? data['doTuongThich'] ?? 94).toInt() : 94,
       hasRoom: hasRoomVal,
-      status: data['status'] ?? data['trangThai'] ?? 'dangMo',
+      status: status,
       contactPhone: data['contactPhone'] ?? data['soDienThoai'] ?? data['sdtLienHe'] ?? '',
+      donId: donId,
+      diaDiemId: '${data['placeId'] ?? data['diaDiemId'] ?? ''}',
+      soNguoiHienTai: ((data['currentOccupants'] ?? data['soNguoiHienTai']) as num?)?.toInt() ?? 1,
+      soNguoiToiDa: ((data['maxOccupants'] ?? data['soNguoiToiDa']) as num?)?.toInt() ?? 2,
+      ngayHetHan: (data['expiresAt'] ?? data['ngayHetHan']) is Timestamp
+          ? ((data['expiresAt'] ?? data['ngayHetHan']) as Timestamp).toDate()
+          : null,
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
-          : (data['ngayTao'] is Timestamp)
-              ? (data['ngayTao'] as Timestamp).toDate()
-              : DateTime.now(),
+          : (data['ngayDang'] is Timestamp)
+              ? (data['ngayDang'] as Timestamp).toDate()
+              : (data['ngayTao'] is Timestamp)
+                  ? (data['ngayTao'] as Timestamp).toDate()
+                  : DateTime.now(),
       updatedAt: (data['updatedAt'] is Timestamp)
           ? (data['updatedAt'] as Timestamp).toDate()
           : (data['ngayCapNhat'] is Timestamp)
@@ -222,53 +260,26 @@ class RoommatePostModel {
     );
   }
 
+  /// Document `roommate_posts` chỉ ghi một tên tiếng Anh cho mỗi trường.
+  /// Ảnh, địa điểm và sở thích nằm ở roommate_post_images, locations, user_hobbies.
   Map<String, dynamic> toMap() {
     return {
       'authorId': authorId,
-      'nguoiDangId': authorId,
-      'authorName': authorName,
-      'authorAge': authorAge,
-      'authorGender': authorGender,
-      'authorOccupation': authorOccupation,
-      'authorAvatar': authorAvatar,
+      if (donId.isNotEmpty) 'bookingId': donId,
+      'placeId': diaDiemId,
+      'status': status == 'daDong' ? 'closed' : 'open',
       'title': title,
-      'tieuDe': title,
       'description': description,
-      'noiDung': description,
-      'postType': postType,
-      'loaiTin': postType,
-      'propertyType': displayPropertyType,
-      'loaiNhaO': displayPropertyType,
-      'pricePerPerson': pricePerPerson,
-      'giaMoiNguoi': pricePerPerson,
       'budgetMin': budgetMin,
-      'nganSachTu': budgetMin,
       'budgetMax': budgetMax,
-      'nganSachDen': budgetMax,
-      'address': address,
-      'diaChi': address,
-      if (latitude != null) 'latitude': latitude,
-      if (longitude != null) 'longitude': longitude,
-      'district': district,
       'targetGender': targetGender,
-      'gioiTinhMongMuon': targetGender,
-      'habits': habits,
-      'thoiQuen': habits,
-      'images': images,
-      // Ảnh Base64 đã khá dài; không ghi thêm bản sao vào anhTinOGhep kẻo document vượt 1MB và máy kia không nhận được bài.
-      if (!images.any((path) => path.startsWith('data:image'))) 'anhTinOGhep': images,
-      'imageCaptions': imageCaptions,
-      'isVerified': isVerified,
-      'matchRate': matchRate,
+      'currentOccupants': soNguoiHienTai,
+      'maxOccupants': soNguoiToiDa,
       'hasRoom': hasRoom,
-      'status': status,
-      'trangThai': status,
-      'contactPhone': contactPhone,
-      'soDienThoai': contactPhone,
+      'propertyType': displayPropertyType,
       'createdAt': Timestamp.fromDate(createdAt),
-      'ngayTao': Timestamp.fromDate(createdAt),
+      if (ngayHetHan != null) 'expiresAt': Timestamp.fromDate(ngayHetHan!),
       'updatedAt': Timestamp.fromDate(updatedAt),
-      'ngayCapNhat': Timestamp.fromDate(updatedAt),
     };
   }
 }

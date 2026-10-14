@@ -100,9 +100,13 @@ class AuthService {
   Future<void> signOut() async {
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
-      await _firestore.collection('users').doc(uid).set({
-        'fcmToken': FieldValue.delete(),
-      }, SetOptions(merge: true));
+      try {
+        await _firestore.collection('users').doc(uid).set({
+          'fcmToken': FieldValue.delete(),
+        }, SetOptions(merge: true));
+      } catch (_) {
+        // Mất mạng hoặc Firestore lỗi vẫn phải thoát phiên đăng nhập.
+      }
     }
     await _auth.signOut();
   }

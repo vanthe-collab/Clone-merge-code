@@ -35,6 +35,28 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
 
   final Set<String> _bookmarkedPostIds = {};
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_loadSavedFavorites);
+  }
+
+  Future<void> _loadSavedFavorites() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    try {
+      final ids = await ref.read(roommateServiceProvider).favoritePostIds(user.uid);
+      if (!mounted) return;
+      setState(() {
+        _bookmarkedPostIds
+          ..clear()
+          ..addAll(ids);
+      });
+    } catch (e) {
+      debugPrint('Đọc yeu_thich: $e');
+    }
+  }
+
   void _openRoommateSearch() {
     Navigator.push(
       context,
@@ -108,13 +130,22 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
   }
 
   void _onToggleBookmark(String postId) {
+    final willSave = !_bookmarkedPostIds.contains(postId);
     setState(() {
-      if (_bookmarkedPostIds.contains(postId)) {
-        _bookmarkedPostIds.remove(postId);
-      } else {
+      if (willSave) {
         _bookmarkedPostIds.add(postId);
+      } else {
+        _bookmarkedPostIds.remove(postId);
       }
     });
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      ref.read(roommateServiceProvider).setRoommateFavorite(
+        userId: user.uid,
+        postId: postId,
+        saved: willSave,
+      );
+    }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -154,6 +185,7 @@ class _RoommateCommunityScreenState extends ConsumerState<RoommateCommunityScree
           isLandlord: false,
           currentUserId: currentUser.uid,
           currentUserName: profile?.displayName ?? currentUser.displayName ?? 'Khách thuê',
+          roommatePostId: post.id,
         ),
       ),
     );

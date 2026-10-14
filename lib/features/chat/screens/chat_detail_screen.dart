@@ -24,6 +24,7 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
   final String currentUserId;
   final String currentUserName;
   final RoomModel? pinnedRoom;
+  final String roommatePostId;
 
   const ChatDetailScreen({
     super.key,
@@ -35,6 +36,7 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
     required this.currentUserId,
     required this.currentUserName,
     this.pinnedRoom,
+    this.roommatePostId = '',
   });
 
   @override
@@ -91,6 +93,24 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     }
   }
 
+  Map<String, dynamic>? _conversationLink() {
+    final meta = <String, dynamic>{};
+    final room = widget.pinnedRoom;
+    if (room != null) {
+      meta['roomCode'] = '#LT-${room.id.hashCode.abs() % 1000}';
+      meta['roomTitle'] = room.title;
+      meta['roomPrice'] = room.price;
+      meta['roomImage'] = room.images.isNotEmpty ? room.images.first : '';
+      meta['isLandlord'] = widget.roommatePostId.isEmpty;
+    }
+    if (widget.roommatePostId.isNotEmpty) {
+      meta['roommatePostId'] = widget.roommatePostId;
+      meta['targetType'] = 'roommatePost';
+      meta['isLandlord'] = false;
+    }
+    return meta.isEmpty ? null : meta;
+  }
+
   // Gửi tin nhắn văn bản (Tc_CHAT_21 -> 25)
   Future<void> _sendMessage([String? overrideText]) async {
     final text = (overrideText ?? _messageController.text).trim();
@@ -135,21 +155,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     );
 
     try {
-      final roomMeta = widget.pinnedRoom != null
-          ? {
-              'roomCode': '#LT-${widget.pinnedRoom!.id.hashCode.abs() % 1000}',
-              'roomTitle': widget.pinnedRoom!.title,
-              'roomPrice': widget.pinnedRoom!.price,
-              'roomImage': widget.pinnedRoom!.images.isNotEmpty ? widget.pinnedRoom!.images.first : '',
-            }
-          : null;
-
       await ref.read(chatServiceProvider).sendMessage(
         message,
         receiverName: widget.receiverName,
         receiverAvatar: widget.receiverAvatar,
         receiverPhone: widget.receiverPhone,
-        roomMetadata: roomMeta,
+        roomMetadata: _conversationLink(),
       );
       _scrollToBottom();
     } catch (e) {
@@ -190,6 +201,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         receiverName: widget.receiverName,
         receiverAvatar: widget.receiverAvatar,
         receiverPhone: widget.receiverPhone,
+        roomMetadata: _conversationLink(),
       );
       _scrollToBottom();
     } catch (e) {

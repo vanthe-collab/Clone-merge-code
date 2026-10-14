@@ -100,9 +100,17 @@ class AccountSettingsScreen extends ConsumerWidget {
 
     if (shouldLogout == true) {
       final authService = ref.read(authServiceProvider);
-      await authService.signOut();
-      if (context.mounted) {
-        Navigator.popUntil(context, (route) => route.isFirst);
+      try {
+        await authService.signOut();
+        if (context.mounted) {
+          Navigator.popUntil(context, (route) => route.isFirst);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Chưa đăng xuất được: $e'), backgroundColor: AppColors.danger),
+          );
+        }
       }
     }
   }

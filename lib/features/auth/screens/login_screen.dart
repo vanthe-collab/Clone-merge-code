@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/phong_sang_theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_form_card.dart';
+import '../auth_validators.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -123,15 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           hint: 'vidu@email.com',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) {
-                              return 'Vui lòng nhập email';
-                            }
-                            if (!val.contains('@') || !val.contains('.')) {
-                              return 'Email không hợp lệ';
-                            }
-                            return null;
-                          },
+                          validator: validateLoginEmail,
                         ),
                         const SizedBox(height: 16),
                         AuthTextField(
@@ -148,15 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) {
-                              return 'Vui lòng nhập mật khẩu';
-                            }
-                            if (val.length < 6) {
-                              return 'Mật khẩu tối thiểu 6 ký tự';
-                            }
-                            return null;
-                          },
+                          validator: validateLoginPassword,
                         ),
                         Align(
                           alignment: Alignment.centerRight,

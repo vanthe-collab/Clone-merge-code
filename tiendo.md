@@ -1468,7 +1468,7 @@ huquynh: https://github.com/23211tt0240-NhuQuynh/homeshare.git.
 | Tiện ích Sunview / quanh khu vực | Danh sách cố định, chỉ tên khu vực lấy từ bài | Bảng `Tiện ích` và `TienIch_Phong` |
 | Bản đồ "15 phút tới FTU CS2" | Cố định | `Địa điểm` kinh độ, vĩ độ, khoảng cách |
 | Chấm xanh đang online | Cố định | `lanHoatDongCuoi` của người đăng |
-| Nút yêu cầu ghép nối | Mở lời nhắn rồi vào chat | Chưa tạo document `YeuCauTraoDoiOGhep` theo `tinId` |
+| Nút yêu cầu ghép nối | Ghi `thoa_thuan_o_ghep` và `yeu_cau_nhan_nguoi_o_ghep`, rồi mở chat | Đã nối ở Phase 2.36 |
 | Xem hồ sơ trên thẻ bài | Mở chính màn chi tiết phòng ở ghép này | Không còn màn chi tiết bài cũ |
 
 #### Quan hệ với màn khác
@@ -1480,7 +1480,7 @@ Sơ đồ `Database homeShare.drawio.xml`, gói Ở ghép / Nhà trọ / Đặt 
 * Phòng 1 — N Bài đăng (`Bài đăng.phongId`). Tiêu đề, giá, mô tả đang nằm chung trên document phòng.
 * Phòng 1 — N Đơn đặt phòng (`Đơn.phongId`, collection `bookings`). Màn này không còn nút Đặt phòng nhanh.
 * Phòng 1 — N Kỳ ở, Kỳ ở 1 — N Cư dân. Người đang ở chưa có collection riêng.
-* Tin ở ghép 1 — N Yêu cầu trao đổi (`YeuCauTraoDoiOGhep.tinId`). Nút **Yêu cầu ghép nối** mới chỉ mở lời nhắn rồi vào chat, chưa tạo document yêu cầu.
+* Tin ở ghép 1 — N thỏa thuận (`thoa_thuan_o_ghep.tinId`). Nút **Yêu cầu ghép nối** ghi thỏa thuận và đúng một yêu cầu nhận người, rồi mở chat. Chi tiết ở Phase 2.36.
 * Cuộc trò chuyện 1 — N Tin nhắn. Nút nhắn tin mở `ChatDetailScreen` với `authorId` của bài ở ghép. `authorId` phải là id document `users`, không phải mã giả.
 * Bài đăng 1 — N Báo cáo. Nút báo cáo nằm trong sheet **Xem hồ sơ**, mở `ReportHostScreen` và ghi `roomId` bằng id bài.
 
@@ -1493,3 +1493,43 @@ Sơ đồ `Database homeShare.drawio.xml`, gói Ở ghép / Nhà trọ / Đặt 
 Lỗi: document `roommate_posts/1f5R1ERVhbJpS49Hb4Co` (Phạm Anh Tuấn) lưu `authorId` = `user_tuan_tech`. Id này không có trong collection `users`, nên quan hệ 1 người — N tin bị đứt và nhắn tin không tới tài khoản thật.
 
 Cách sửa: bài tạo từ form đăng tin đã ghi `authorId` = uid Firebase (`create_roommate_post_screen.dart`). Bài cũ trên Firestore được sửa khi mở bảng tin: `RoommateService.repairRoommateAuthorIds` tìm `users` theo `displayName` / `hoTen` / `hoten`. Trùng đúng một tài khoản thì ghi đè `authorId` và `nguoiDangId` bằng id document đó. Không trùng, hoặc trùng nhiều người cùng tên, thì không gán bừa. Bài demo trong bộ nhớ (`demo_lan_anh` và các id tương tự) không ghi lên Firestore.
+
+### Phase 2.36: Tách tin ở ghép theo các bảng liên kết
+
+Bài tìm người ở ghép không còn nhét hồ sơ, ảnh, địa chỉ và thói quen chung một document. Document `roommate_posts` giữ vai trò TinOGhep. Các màn vẫn nhận đủ tên, ảnh, địa chỉ vì lúc đọc bài, app ghép lại từ các bảng kia.
+
+**Document `roommate_posts` khi đăng tin mới ghi**
+* `nguoiDangId` và `authorId`: cùng một uid Firebase, trỏ sang `users`.
+* `donId`: chỉ ghi khi có đơn đặt phòng. Form đăng tin hiện chưa chọn đơn, nên field này để trống.
+* `diaDiemId`: trỏ sang `dia_diem`.
+* `trangThai_id`: `mo` hoặc `dong`.
+* `tieuDe`, `moTa`, `nganSachTu`, `nganSachDen`, `gioiTinhMongMuon`.
+* `soNguoiHienTai` mặc định 1, `soNguoiToiDa` mặc định 2.
+* `ngayDang`, `ngayHetHan` (30 ngày kể từ lúc đăng).
+
+Tiêu đề, mô tả, ngân sách và giới tính vẫn ghi thêm khóa tiếng Anh (`title`, `description`, `budgetMin`, `budgetMax`, `targetGender`) để màn cũ đọc trực tiếp được.
+
+**Không còn ghi lên document tin**
+* Hồ sơ người đăng: tên, tuổi, giới tính, nghề, ảnh đại diện, số điện thoại. Các màn lấy các field này từ `users`.
+* `habits`: ghi từng sở thích vào `nguoi_dung_so_thich` (`nguoiDungId`, `soThichId`).
+* `images`, `imageCaptions`: mỗi ảnh một document `anh_tin_o_ghep` (`anhId`, `tinId`, `urlAnh`, `moTa`). Ảnh dạng `data:image` không tách ra, vì document Firestore giới hạn 1MB.
+* Địa chỉ, quận, tọa độ: sang `dia_diem` (`diaDiemId`, `province`, `district`, `ward`, `address`, `latitude`, `longitude`). Chuỗi địa chỉ dạng "số nhà, phường, quận, tỉnh" được tách khi đăng.
+* `postType`, `pricePerPerson`, `matchRate`, `isVerified` không ghi lên tin. Giá trên thẻ lấy từ `nganSachDen` khi tin không còn `pricePerPerson`. `hasRoom` và `propertyType` vẫn ghi vì bộ lọc bảng tin và màn chi tiết đang đọc hai field này. `donId` mới là khóa sang `bookings`; form đăng tin chưa chọn đơn nên `donId` để trống.
+
+**Bài cũ vẫn đọc được.** `fromMap` vẫn nhận document cũ còn tên, ảnh, địa chỉ nằm ngay trên tin. Bài mới thiếu các field đó thì `RoommateService` đọc `users`, `dia_diem`, `anh_tin_o_ghep`, `nguoi_dung_so_thich` rồi mới đưa lên danh sách.
+
+**Collection mới**
+* `dia_diem`, `anh_tin_o_ghep`, `nguoi_dung_so_thich`: tạo lúc đăng tin (`RoommateService.createPost`).
+* `yeu_thich`: nút tim ở bảng tin Tìm ở ghép ghi `nguoiDungId`, `loaiDoiTuong_id` = `tinOGhep`, `doiTuongId`. Bỏ tim thì xóa document. Mở lại bảng tin thì đọc lại các tim đã lưu. Chưa đăng nhập thì chỉ đổi trên màn hình.
+* `thoa_thuan_o_ghep`: nút **Yêu cầu ghép nối** ở chi tiết phòng ở ghép ghi `thoaThuanId`, `tinId`, `nguoiYeuCauId`, `cuocTroChuyenId`, `trangThaiYeuCau_id` = `choDuyet`, `loiNhan`, `ngayTao`.
+* `yeu_cau_nhan_nguoi_o_ghep`: cùng lúc đó ghi đúng một document cho thỏa thuận, với `yeuCauId`, `thoaThuanId`, `chuNhaId`, `tepDinhKem_id` để trống, `trangThai_id` = `choDuyet`, `ghiChu`, `ngayTao`.
+
+**Chat.** Mở chat từ bảng tin, chi tiết bài hoặc chi tiết phòng ở ghép thì cuộc trò chuyện nhận thêm `tinOGhepId` và `loaiDoiTuong_id` = `tinOGhep`. Báo cáo chủ nhà vẫn gắn với bài đăng phòng, không gắn vào tin ở ghép.
+
+**File đã sửa**
+* `lib/data/models/roommate_post_model.dart`
+* `lib/core/services/roommate_service.dart`
+* `lib/features/chat/screens/chat_detail_screen.dart`
+* `lib/features/renter/screens/roommate_community_screen.dart`
+* `lib/features/renter/screens/roommate_post_detail_screen.dart`
+* `lib/features/renter/screens/roommate_room_detail_screen.dart`

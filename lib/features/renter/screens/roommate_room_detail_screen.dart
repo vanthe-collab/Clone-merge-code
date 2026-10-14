@@ -7,6 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/chat_service.dart';
+import '../../../core/services/roommate_service.dart';
+import '../../../data/models/chat_model.dart';
 import '../../../data/models/roommate_post_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/providers/user_provider.dart';
@@ -243,17 +246,18 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
           receiverId: _peerId,
           receiverName: _posterName,
           receiverAvatar: _peerAvatar,
-          receiverPhone: _peerPhone.isEmpty ? '0903888999' : _peerPhone,
+          receiverPhone: _peerPhone,
           isLandlord: false,
           currentUserId: currentUser.uid,
           currentUserName: profile?.displayName ?? currentUser.displayName ?? 'Khách thuê',
           pinnedRoom: null,
+          roommatePostId: _post.id,
         ),
       ),
     );
   }
 
-  /// Soạn lời ghép nối rồi vào chat. Chưa tạo document yêu cầu trên Firestore.
+  /// Soạn lời ghép nối, ghi thỏa thuận và yêu cầu nhận người, rồi vào chat.
   void _openJoinRequest() {
     final controller = TextEditingController(
       text: 'Chào $_posterName, mình thấy phòng và lối sống của bạn hợp với mình. Mình muốn kết nối để ở ghép cùng nhé.',
@@ -285,7 +289,7 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
               const Text('Yêu cầu ghép nối', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
               const Text(
-                'Lời nhắn này mở cuộc trò chuyện với người đăng phòng. Chưa ghi thành đơn riêng trên Firestore.',
+                'Lời nhắn được lưu vào thỏa thuận ở ghép và yêu cầu nhận người, rồi mở cuộc trò chuyện.',
                 style: TextStyle(fontSize: 15, color: AppColors.textSecondary, height: 1.4),
               ),
               const SizedBox(height: 12),
@@ -303,9 +307,54 @@ class _RoommateRoomDetailScreenState extends ConsumerState<RoommateRoomDetailScr
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    final text = controller.text.trim();
+                    if (text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập lời nhắn trước khi gửi yêu cầu ghép')),
+                      );
+                      return;
+                    }
                     Navigator.pop(ctx);
-                    _openChat();
+                    final user = ref.read(currentUserProvider);
+                    final profile = ref.read(userProfileProvider).value;
+                    if (user != null && _peerId.isNotEmpty && user.uid != _peerId) {
+                      final senderName = profile?.displayName ?? user.displayName ?? 'Khách thuê';
+                      try {
+                        await ref.read(roommateServiceProvider).createRoommateAgreement(
+                          tinId: _post.id,
+                          requesterId: user.uid,
+                          ownerId: _peerId,
+                          message: text,
+                        );
+                        await ref.read(chatServiceProvider).sendMessage(
+                          ChatMessageModel(
+                            id: '',
+                            senderId: user.uid,
+                            senderName: senderName,
+                            receiverId: _peerId,
+                            text: text,
+                            timestamp: DateTime.now(),
+                            status: 'sent',
+                          ),
+                          receiverName: _posterName,
+                          receiverAvatar: _peerAvatar,
+                          receiverPhone: _peerPhone,
+                          roomMetadata: {
+                            'roommatePostId': _post.id,
+                            'targetType': 'roommatePost',
+                            'isLandlord': false,
+                          },
+                        );
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Chưa gửi được lời nhắn: $e')),
+                          );
+                        }
+                      }
+                    }
+                    if (mounted) _openChat();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

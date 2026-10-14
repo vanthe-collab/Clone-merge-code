@@ -234,6 +234,7 @@ class _RoommatePostDetailScreenState extends ConsumerState<RoommatePostDetailScr
           isLandlord: false,
           currentUserId: currentUser.uid,
           currentUserName: profile?.displayName ?? currentUser.displayName ?? 'Khách thuê',
+          roommatePostId: widget.post.id,
         ),
       ),
     );

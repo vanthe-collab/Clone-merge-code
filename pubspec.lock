@@ -1122,6 +1122,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.11"
+<<<<<<< HEAD
   timezone:
     dependency: transitive
     description:
@@ -1130,6 +1131,8 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.10.1"
+=======
+>>>>>>> origin/master
   typed_data:
     dependency: transitive
     description:
@@ -1138,6 +1141,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+<<<<<<< HEAD
   unicode:
     dependency: transitive
     description:
@@ -1146,6 +1150,8 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.9"
+=======
+>>>>>>> origin/master
   uuid:
     dependency: transitive
     description:
@@ -1178,6 +1184,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+<<<<<<< HEAD
   wkt_parser:
     dependency: transitive
     description:
@@ -1186,6 +1193,8 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+=======
+>>>>>>> origin/master
   xdg_directories:
     dependency: transitive
     description:
@@ -1194,6 +1203,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+<<<<<<< HEAD
   xml:
     dependency: transitive
     description:
@@ -1202,6 +1212,8 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.6.1"
+=======
+>>>>>>> origin/master
   yaml:
     dependency: transitive
     description:
