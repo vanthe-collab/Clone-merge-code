@@ -1,0 +1,197 @@
+// BẢN NHÁP CHUNG cho schema hiện có trong repository. Chưa triển khai.
+// Admin được cấp qua Firebase Console: users/{UID}.role = "admin".
+// Client không được tự nâng role; không có catch-all cho phép toàn bộ database.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function ownUid(uid) { return signedIn() && request.auth.uid == uid; }
+    function profileExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'renter');
+    }
+    function admin() { return profileExists() && role() == 'admin'; }
+    function host() { return profileExists() && role() == 'host'; }
+    function renter() { return profileExists() && role() == 'renter'; }
+    function chatMember(chatId) {
+      return signedIn() && exists(/databases/$(database)/documents/chats/$(chatId))
+        && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.users;
+    }
+    function chatMemberAfter(chatId) {
+      return signedIn() && request.auth.uid in getAfter(/databases/$(database)/documents/chats/$(chatId)).data.users;
+    }
+
+    // Hồ sơ riêng gồm cả thông tin CCCD. Không cho tài khoản khác đọc.
+    match /users/{uid} {
+      allow read: if ownUid(uid) || admin();
+      allow create: if admin() || (ownUid(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['host', 'renter']
+        && request.resource.data.vaiTro == request.resource.data.role
+        && request.resource.data.vaiTro_id == (request.resource.data.role == 'host' ? 2 : 1));
+      allow update: if admin() || (ownUid(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['uid', 'role', 'vaiTro', 'vaiTro_id', 'isAdmin', 'admin', 'permissions', 'customClaims']));
+      allow delete: if admin();
+    }
+
+    // Cơ sở và giấy tờ cơ sở: chủ sở hữu và Admin.
+    match /properties/{propertyId} {
+      allow get: if admin() || (host() &&
+        (!exists(/databases/$(database)/documents/properties/$(propertyId)) || resource.data.hostId == request.auth.uid));
+      allow list: if admin() || (host() && resource.data.hostId == request.auth.uid);
+      allow create: if admin() || (host() && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.address is string && request.resource.data.address.size() > 0
+        && request.resource.data.city is string
+        && request.resource.data.district is string && request.resource.data.district.size() > 0
+        && request.resource.data.ward is string
+        && request.resource.data.plannedRooms is int && request.resource.data.plannedRooms > 0 && request.resource.data.plannedRooms <= 1000
+        && request.resource.data.floors is int && request.resource.data.floors > 0 && request.resource.data.floors <= 100
+        && request.resource.data.images is list && request.resource.data.images.size() > 0 && request.resource.data.images.size() <= 5
+        && request.resource.data.roomCount == 0 && request.resource.data.verificationStatus == 'unverified');
+      // roomCount/roomCodes được cập nhật cùng transaction tạo, đổi mã hoặc xóa mềm phòng.
+      allow update: if admin() || (host() && resource.data.hostId == request.auth.uid
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomCount', 'roomCodes'])
+            && request.resource.data.roomCount >= 0
+            && request.resource.data.roomCount <= resource.data.plannedRooms
+            && (request.resource.data.roomCount == resource.data.roomCount
+              || request.resource.data.roomCount == resource.data.roomCount + 1
+              || request.resource.data.roomCount == resource.data.roomCount - 1))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'name', 'address', 'city', 'district', 'ward', 'plannedRooms', 'floors',
+              'minRent', 'maxRent', 'images', 'lastEditOperation', 'updatedAt'
+            ])
+            && request.resource.data.hostId == resource.data.hostId
+            && request.resource.data.roomCount == resource.data.roomCount
+            && request.resource.data.roomCodes == resource.data.roomCodes
+            && request.resource.data.plannedRooms >= resource.data.roomCount
+            && request.resource.data.floors > 0
+            && request.resource.data.images is list
+            && request.resource.data.images.size() > 0
+            && request.resource.data.images.size() <= 5)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'deletedAt', 'updatedAt'
+            ])
+            && resource.data.roomCount == 0
+            && request.resource.data.status == 'deleted')
+        ));
+      allow delete: if admin();
+    }
+
+    // Danh sách phòng công khai cho khách thuê. Module quản lý chủ trọ không ghi vào đây.
+    match /rooms/{roomId} {
+      allow read: if signedIn();
+      allow create, update, delete: if admin();
+    }
+
+    // Kho phòng vận hành riêng: chỉ chủ sở hữu và Admin được đọc/ghi.
+    match /host_rooms/{roomId} {
+      allow get: if admin() || (host() &&
+        (!exists(/databases/$(database)/documents/host_rooms/$(roomId))
+          || resource.data.hostId == request.auth.uid));
+      allow list: if admin() || (host() && resource.data.hostId == request.auth.uid);
+      allow create: if admin() || (host() && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.chuNhaId == request.auth.uid
+        && request.resource.data.propertyId is string
+        && request.resource.data.roomCode is string && request.resource.data.roomCode.size() > 0
+        && request.resource.data.status == 'available' && request.resource.data.isAvailable == true
+        && request.resource.data.price is number && request.resource.data.price > 0
+        && request.resource.data.deposit is number && request.resource.data.deposit >= 0
+        && request.resource.data.area is number && request.resource.data.area > 0
+        && request.resource.data.capacity is int && request.resource.data.capacity > 0
+        && request.resource.data.images is list && request.resource.data.images.size() > 0 && request.resource.data.images.size() <= 8
+        && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.hostId == request.auth.uid
+        && get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('status', 'active') != 'deleted'
+        && request.resource.data.floor > 0
+        && request.resource.data.floor <= get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.floors
+        && getAfter(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.roomCount
+           == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.roomCount + 1);
+      allow update: if admin() || (host() && resource.data.hostId == request.auth.uid
+        && request.resource.data.hostId == resource.data.hostId
+        && request.resource.data.chuNhaId == resource.data.chuNhaId
+        && request.resource.data.propertyId == resource.data.propertyId
+        && request.resource.data.operationId == resource.data.operationId
+        && request.resource.data.images is list
+        && request.resource.data.images.size() > 0
+        && request.resource.data.images.size() <= 8
+        && get(/databases/$(database)/documents/properties/$(resource.data.propertyId)).data.hostId == request.auth.uid);
+      // Ứng dụng xóa mềm; chỉ Admin mới được xóa vật lý.
+      allow delete: if admin();
+    }
+
+    // Đơn riêng: người thuê đặt đơn và chủ nhà liên quan được đọc.
+    match /bookings/{bookingId} {
+      allow read: if admin() || (signedIn() &&
+        (resource.data.renterId == request.auth.uid || resource.data.hostId == request.auth.uid));
+      allow create: if renter()
+        && request.resource.data.renterId == request.auth.uid
+        && request.resource.data.nguoiDung_Id == request.auth.uid
+        && request.resource.data.status in ['pending', 'pending_payment']
+        && request.resource.data.trangThai == request.resource.data.status
+        && request.resource.data.hostId == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.hostId
+        && request.resource.data.roomPrice == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.price
+        && request.resource.data.rentalMonths is int && request.resource.data.rentalMonths > 0;
+      // "paid" ở app hiện là xác nhận DEMO do client gửi, không phải xác minh ngân hàng.
+      allow update: if admin() || (signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'trangThai', 'updatedAt', 'acceptedDate', 'ngayChapNhan'])
+        && ((resource.data.renterId == request.auth.uid
+              && resource.data.status in ['pending', 'pending_payment', 'paid', 'approved']
+              && ((request.resource.data.status == 'cancelled' && request.resource.data.trangThai == 'daHuy')
+                  || (resource.data.status == 'pending_payment' && request.resource.data.status == 'paid' && request.resource.data.trangThai == 'daThanhToan')))
+            || (host() && resource.data.hostId == request.auth.uid
+                && request.resource.data.status in ['approved', 'rejected', 'active', 'cancelled'])));
+      allow delete: if admin();
+    }
+
+    // Tin ở ghép công khai trong app; chỉ tác giả và Admin được sửa/xóa.
+    match /roommate_posts/{postId} {
+      allow read: if signedIn();
+      allow create: if renter() && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.nguoiDangId == request.auth.uid;
+      allow update: if admin() || (renter() && resource.data.authorId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['authorId', 'nguoiDangId']));
+      allow delete: if admin() || (signedIn() && resource.data.authorId == request.auth.uid);
+    }
+
+    // Hội thoại chỉ cho hai người tham gia và Admin.
+    match /chats/{chatId} {
+      allow read: if admin() || (signedIn() && request.auth.uid in resource.data.users);
+      allow create: if signedIn() && request.resource.data.users is list
+        && request.resource.data.users.size() == 2
+        && request.resource.data.users[0] != request.resource.data.users[1]
+        && request.auth.uid in request.resource.data.users
+        && request.resource.data.nguoiThamGia == request.resource.data.users;
+      allow update: if admin() || (signedIn() && request.auth.uid in resource.data.users
+        && request.resource.data.users == resource.data.users
+        && request.resource.data.nguoiThamGia == resource.data.nguoiThamGia);
+      allow delete: if admin();
+      match /messages/{messageId} {
+        allow read: if admin() || chatMember(chatId);
+        allow create: if chatMemberAfter(chatId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.nguoiGuiId == request.auth.uid
+          && request.resource.data.conversationId == chatId
+          && request.resource.data.receiverId != request.auth.uid
+          && request.resource.data.receiverId in getAfter(/databases/$(database)/documents/chats/$(chatId)).data.users;
+        allow update: if admin() || (chatMember(chatId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'status', 'trangThaiTinNhan_id', 'extraData'])
+          && ((resource.data.receiverId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'status', 'trangThaiTinNhan_id']))
+              || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['extraData'])));
+        allow delete: if admin();
+      }
+    }
+
+    // Báo cáo: người gửi và Admin đọc; người bị báo cáo không được sửa.
+    match /reports/{reportId} {
+      allow create: if signedIn() && request.resource.data.reporterId == request.auth.uid && request.resource.data.status == 'pending';
+      allow read: if admin() || (signedIn() && resource.data.reporterId == request.auth.uid);
+      allow update, delete: if admin();
+    }
+    // Collection ngoài danh sách phải được đối chiếu với dự án Admin.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
