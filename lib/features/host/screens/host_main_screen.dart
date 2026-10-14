@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../chat/screens/chat_list_screen.dart';
 import '../../home/screens/home_screen.dart';
 import 'host_dashboard_screen.dart';
 
@@ -15,7 +16,7 @@ class _HostMainScreenState extends State<HostMainScreen> {
 
   final List<Widget> _screens = const [
     HostDashboardScreen(),
-    _PlaceholderScreen(title: 'Tin nhắn với người thuê', icon: Icons.chat_bubble_outline),
+    ChatListScreen(hostMode: true),
     HostDashboardScreen(), // Nút tròn giữa kích hoạt BottomSheet tạo mới
     _PlaceholderScreen(title: 'Quản lý phòng & Hợp đồng', icon: Icons.assignment_outlined),
     HomeScreen(), // Trang cá nhân & Đăng xuất

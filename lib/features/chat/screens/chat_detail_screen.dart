@@ -11,6 +11,7 @@ import '../../../data/models/chat_model.dart';
 import '../../../data/models/room_model.dart';
 import '../../../core/services/call_service.dart';
 import '../../../core/services/chat_service.dart';
+import '../../auth/providers/user_provider.dart';
 import '../../renter/screens/room_detail_screen.dart';
 import 'call_screen.dart';
 
@@ -47,6 +48,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   static final _phoneRegex = RegExp(r'\b(0\d{9,10})\b');
+
+  bool get _allowRoommateInvite {
+    final isHostUser = ref.watch(userProfileProvider).value?.isHost ?? false;
+    return !widget.isLandlord && !isHostUser;
+  }
 
   bool _isBlocked = false;
   bool _showPinnedRoom = true;
@@ -570,8 +576,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         _showAppointmentDialog();
                       },
                     ),
-                  // CHỈ hiển thị 'Mời ở ghép' khi trao đổi với Người dùng / Bạn tìm ở ghép (!isLandlord)
-                  if (!widget.isLandlord)
+                  // Chỉ khách thuê mới mời ở ghép; chủ trọ không thấy chức năng này.
+                  if (_allowRoommateInvite)
                     _buildAttachOption(
                       icon: Icons.group_add_outlined,
                       label: 'Mời ở ghép',
@@ -795,7 +801,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 
   void _showRoommateInviteDialog() {
-    if (widget.isLandlord) {
+    if (!_allowRoommateInvite) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tính năng mời ở ghép chỉ áp dụng khi trao đổi với người dùng tìm phòng / ở ghép.')),
       );
@@ -1409,18 +1415,18 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   // Widget Thanh câu hỏi gợi ý nhanh (Tc_CHAT_12 -> 14)
   Widget _buildQuickChipsBar() {
-    final chips = widget.isLandlord
+    final chips = _allowRoommateInvite
         ? [
-            'Phòng này còn trống không?',
-            'Có chỗ để xe không?',
-            'Giờ giấc như thế nào?',
-            'Hẹn lịch xem phòng',
-          ]
-        : [
             'Chào bạn, bạn đã tìm được phòng chưa?',
             'Ngân sách phòng trọ bạn dự kiến bao nhiêu?',
             'Thói quen sinh hoạt của bạn như thế nào?',
             '+ Mời vào ở ghép',
+          ]
+        : [
+            'Phòng này còn trống không?',
+            'Có chỗ để xe không?',
+            'Giờ giấc như thế nào?',
+            'Hẹn lịch xem phòng',
           ];
 
     return Container(

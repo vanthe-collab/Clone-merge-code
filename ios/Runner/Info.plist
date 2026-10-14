@@ -50,7 +50,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>HomeShare cần camera để thực hiện cuộc gọi video.</string>
+	<string>HomeShare cần camera để quét CCCD và thực hiện cuộc gọi video.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HomeShare cần micro để gọi thoại và gọi video.</string>
 	<key>UILaunchStoryboardName</key>

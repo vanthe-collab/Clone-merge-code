@@ -12,7 +12,10 @@ import 'chat_detail_screen.dart';
 
 /// Màn hình Danh sách Cuộc trò chuyện & Trao đổi (Feature #10 theo SRS & Tc_CHAT)
 class ChatListScreen extends ConsumerStatefulWidget {
-  const ChatListScreen({super.key});
+  /// Chủ trọ chỉ thấy hội thoại đặt phòng, không thấy bài/gợi ý ở ghép.
+  final bool hostMode;
+
+  const ChatListScreen({super.key, this.hostMode = false});
 
   @override
   ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
@@ -89,19 +92,20 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         roomPrice: 2800000,
         roomImage: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600',
       ),
-      ConversationModel(
-        id: 'user_nam_99',
-        partnerId: 'user_nam_99',
-        partnerName: 'Nguyễn Văn Nam (Tìm ở ghép)',
-        partnerPhone: '0987654321',
-        isLandlord: false,
-        lastMessage: 'Chào bạn, bạn đã tìm được ai ở ghép cùng chưa?',
-        lastMessageTime: DateTime.now().subtract(const Duration(days: 1)),
-        unreadCount: 0,
-        roomCode: '#OG-302',
-        roomTitle: 'Căn hộ mini 2 phòng ngủ ghép đôi',
-        roomPrice: 1800000,
-      ),
+      if (!widget.hostMode)
+        ConversationModel(
+          id: 'user_nam_99',
+          partnerId: 'user_nam_99',
+          partnerName: 'Nguyễn Văn Nam (Tìm ở ghép)',
+          partnerPhone: '0987654321',
+          isLandlord: false,
+          lastMessage: 'Chào bạn, bạn đã tìm được ai ở ghép cùng chưa?',
+          lastMessageTime: DateTime.now().subtract(const Duration(days: 1)),
+          unreadCount: 0,
+          roomCode: '#OG-302',
+          roomTitle: 'Căn hộ mini 2 phòng ngủ ghép đôi',
+          roomPrice: 1800000,
+        ),
       ConversationModel(
         id: 'host_hoang_quan',
         partnerId: 'host_hoang_quan',
@@ -125,10 +129,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     for (final c in liveConversations) {
       mergedMap[c.id] = c;
     }
-    // 2. Bổ sung các cuộc trò chuyện mẫu nếu chưa có
-    for (final s in sampleConversations) {
-      if (!mergedMap.containsKey(s.id)) {
-        mergedMap[s.id] = s;
+    // 2. Bổ sung các cuộc trò chuyện mẫu (chỉ cho khách thuê).
+    if (!widget.hostMode) {
+      for (final s in sampleConversations) {
+        if (!mergedMap.containsKey(s.id)) {
+          mergedMap[s.id] = s;
+        }
       }
     }
 
@@ -155,6 +161,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           return false;
         }
       }
+
+      // Chủ trọ không thấy hội thoại ở ghép giữa khách với khách.
+      if (widget.hostMode && !conv.isLandlord) return false;
 
       // 2. Lọc theo danh mục tab
       if (_selectedFilter == 'landlord' && !conv.isLandlord) return false;
@@ -225,9 +234,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 children: [
                   _buildFilterChip('all', 'Tất cả'),
                   const SizedBox(width: 8),
-                  _buildFilterChip('landlord', 'Chủ trọ'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('roommate', 'Ở ghép'),
+                  if (widget.hostMode) ...[
+                    _buildFilterChip('landlord', 'Người thuê'),
+                  ] else ...[
+                    _buildFilterChip('landlord', 'Chủ trọ'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('roommate', 'Ở ghép'),
+                  ],
                   const SizedBox(width: 8),
                   _buildFilterChip('unread', 'Chưa đọc'),
                 ],
@@ -723,15 +736,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     time: '2 giờ trước',
                     isUnread: true,
                   ),
-                  _buildNotificationItem(
-                    icon: Icons.people_outline_rounded,
-                    iconBg: const Color(0xFFF3E8FF),
-                    iconColor: const Color(0xFF7C3AED),
-                    title: 'Gợi ý bạn ở ghép phù hợp',
-                    content: 'Nguyễn Văn Nam có lối sống và ngân sách tương thích 95% vừa gửi lời kết nối.',
-                    time: '1 ngày trước',
-                    isUnread: false,
-                  ),
+                  if (!widget.hostMode)
+                    _buildNotificationItem(
+                      icon: Icons.people_outline_rounded,
+                      iconBg: const Color(0xFFF3E8FF),
+                      iconColor: const Color(0xFF7C3AED),
+                      title: 'Gợi ý bạn ở ghép phù hợp',
+                      content: 'Nguyễn Văn Nam có lối sống và ngân sách tương thích 95% vừa gửi lời kết nối.',
+                      time: '1 ngày trước',
+                      isUnread: false,
+                    ),
                 ],
               ),
             ),

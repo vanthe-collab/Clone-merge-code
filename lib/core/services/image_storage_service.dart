@@ -194,6 +194,114 @@ class ImageStorageService {
 
     return uploadedUrls;
   }
+
+  /// Tải ảnh CCCD (mặt trước hoặc mặt sau) lên Firebase Storage.
+  /// Kiểm tra magic bytes, dung lượng và fail-closed nếu không hợp lệ.
+  Future<String> uploadCccdImage({
+    required String filePath,
+    required String uid,
+    required bool isFront,
+  }) async {
+    if (filePath.isEmpty) {
+      throw const FormatException('Đường dẫn ảnh CCCD rỗng.');
+    }
+
+    if (filePath.startsWith('http://') ||
+        filePath.startsWith('https://') ||
+        filePath.startsWith('data:image')) {
+      throw const FormatException(
+        'Không chấp nhận URL từ xa hoặc Data URI cho ảnh CCCD.',
+      );
+    }
+
+    if (filePath.toLowerCase().contains('demo_cccd')) {
+      throw const FormatException(
+        'Ảnh mẫu thử nghiệm không được phép tải lên hệ thống.',
+      );
+    }
+
+    final file = File(filePath);
+    if (!file.existsSync()) {
+      throw const FileSystemException(
+        'Tệp ảnh CCCD không tồn tại trên thiết bị.',
+      );
+    }
+
+    final bytes = await file.readAsBytes();
+    if (bytes.length < 20 * 1024 || bytes.length > 15 * 1024 * 1024) {
+      debugPrint(
+        '[ImageStorageService] Dung lượng ảnh CCCD không nằm trong giới hạn cho phép.',
+      );
+      throw const FormatException(
+        'Dung lượng ảnh CCCD không hợp lệ (yêu cầu từ 20KB đến 15MB).',
+      );
+    }
+
+    final isJpeg =
+        bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF;
+    final isPng =
+        bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A;
+    final isWebp =
+        bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50;
+
+    if (!isJpeg && !isPng && !isWebp) {
+      debugPrint(
+        '[ImageStorageService] Định dạng tệp ảnh CCCD không hợp lệ.',
+      );
+      throw const FormatException(
+        'Định dạng tệp không phải ảnh chuẩn (JPEG, PNG, WebP).',
+      );
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = '${isFront ? "front" : "back"}_$timestamp.jpg';
+
+    try {
+      final storageRef = _storage.ref().child('users/$uid/cccd/$fileName');
+      final metadata = SettableMetadata(
+        contentType: isPng
+            ? 'image/png'
+            : (isWebp ? 'image/webp' : 'image/jpeg'),
+        customMetadata: {
+          'uid': uid,
+          'type': isFront ? 'cccd_front' : 'cccd_back',
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      final uploadTask = storageRef.putFile(file, metadata);
+      final snapshot = await uploadTask.timeout(const Duration(seconds: 15));
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      debugPrint('[ImageStorageService] Tải ảnh CCCD lên cloud thành công.');
+      return downloadUrl;
+    } catch (_) {
+      debugPrint(
+        '[ImageStorageService] Lỗi kết nối khi tải ảnh CCCD lên cloud.',
+      );
+      throw const HttpException(
+        'Không thể tải ảnh CCCD lên bộ nhớ đám mây. Vui lòng kiểm tra kết nối mạng.',
+      );
+    }
+  }
 }
 
 final imageStorageServiceProvider = Provider<ImageStorageService>((ref) {

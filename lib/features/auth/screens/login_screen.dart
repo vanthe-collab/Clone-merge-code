@@ -109,7 +109,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Đăng nhập để tìm phòng và kết nối ở ghép',
+                    'Đăng nhập để tiếp tục',
                     textAlign: TextAlign.center,
                     style: PhongSangText.body.copyWith(fontSize: 16),
                   ),

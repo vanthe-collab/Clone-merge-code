@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../features/auth/providers/user_provider.dart';
+import '../../features/auth/services/role_resolver.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -51,6 +52,13 @@ class AuthService {
 
         // Sinh mã người dùng 5 ký tự (3 số đầu + 2 chữ sau)
         final userCode = UserProfile.generateUserCode(seed: user.uid);
+        final normalizedRole =
+            RoleResolver.normalizeRole(role) ?? RoleResolver.renter;
+        final vaiTroId = normalizedRole == RoleResolver.host
+            ? 2
+            : normalizedRole == RoleResolver.admin
+                ? 3
+                : 1;
 
         // Lưu thông tin người dùng vào Firestore collection 'users'
         await _firestore.collection('users').doc(user.uid).set({
@@ -63,9 +71,9 @@ class AuthService {
           'hoTen': displayName.trim(),
           'phoneNumber': phoneNumber ?? '',
           'soDienThoai': phoneNumber ?? '',
-          'role': role,
-          'vaiTro': role,
-          'vaiTro_id': role == 'host' ? 2 : 1,
+          'role': normalizedRole,
+          'vaiTro': normalizedRole,
+          'vaiTro_id': vaiTroId,
           'diemUyTin': 100,
           'avatarUrl': '',
           'anhDaiDien': '',

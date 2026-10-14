@@ -113,13 +113,13 @@ void main() {
       );
 
       final map = post.toMap();
-      expect(map['authorName'], equals('Lê Văn An'));
-      expect(map['tieuDe'], equals('Tìm bạn nam ở ghép phòng gần HUTECH'));
-      expect(map['gioiTinhMongMuon'], equals('Nam'));
+      expect(post.authorName, equals('Lê Văn An'));
+      expect(map['title'], equals('Tìm bạn nam ở ghép phòng gần HUTECH'));
+      expect(map['targetGender'], equals('Nam'));
       expect(map['hasRoom'], isTrue);
-      expect(map['giaMoiNguoi'], equals(1800000));
-      expect(map['nganSachDen'], equals(2000000));
-      expect(map['thoiQuen'], contains('Không hút thuốc'));
+      expect(map['budgetMax'], equals(2000000));
+      expect(map['authorId'], equals('user_renter_1'));
+      expect(post.habits, contains('Không hút thuốc'));
     });
 
     test('RoommatePostModel fromMap parses DrawIO Vietnamese keys', () {
@@ -270,7 +270,7 @@ void main() {
   });
 
   group('UserProfile Tests', () {
-    test('UserProfile parses from DrawIO keys and enforces renter role', () {
+    test('UserProfile parses from DrawIO keys without forcing renter role', () {
       final data = {
         'hoTen': 'Nguyễn Văn Thuê',
         'email': 'thue@gmail.com',
@@ -281,6 +281,7 @@ void main() {
         'diemUyTin': 100,
         'ngheNghiep': 'Kỹ sư phần mềm',
         'soThich': ['Đọc sách', 'Thể thao'],
+        'vaiTro': 'renter',
       };
 
       final profile = UserProfile.fromMap(data, 'u_user_99');
@@ -289,6 +290,7 @@ void main() {
       expect(profile.hoTen, equals('Nguyễn Văn Thuê'));
       expect(profile.phoneNumber, equals('0988888888'));
       expect(profile.role, equals('renter'));
+      expect(profile.isRenter, isTrue);
       expect(profile.gender, equals('Nam'));
       expect(profile.reputationScore, equals(100));
       expect(profile.occupation, equals('Kỹ sư phần mềm'));
